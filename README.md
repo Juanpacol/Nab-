@@ -13,7 +13,7 @@ apps/
   web/       Next.js 15 (landing + dashboard)
   api/       NestJS (REST + WebSockets)
   workers/   NestJS standalone (colas BullMQ: ingesta, IA, emails)
-  mobile/    Expo/React Native (fase final)
+  mobile/    Expo/React Native (Expo Router, feed swipe, coach, push)
 packages/
   ui/        Design system (tokens, componentes)
   database/  Prisma schema + cliente + seeds
@@ -61,6 +61,17 @@ Levanta web + api + workers + Postgres + Redis con un solo comando:
 pnpm docker:up   # docker compose up --build
 ```
 
+## App móvil (Expo)
+
+```bash
+cd apps/mobile
+cp .env.example .env       # ajusta EXPO_PUBLIC_API_URL a la IP de tu red si usas un dispositivo físico
+pnpm start                 # abre Expo Dev Tools; escanea el QR con Expo Go
+```
+
+- `pnpm --filter @nab/mobile typecheck` / `lint` / `export` (build estático de verificación).
+- Build de distribución (requiere cuenta de Expo/EAS): `npx eas-cli build --platform ios|android --profile preview`.
+
 ## Comandos útiles
 
 | Comando | Descripción |
@@ -75,13 +86,15 @@ pnpm docker:up   # docker compose up --build
 
 ## Fases de desarrollo
 
-El desarrollo sigue un plan por fases (ver `/Users/juanpablo/.claude/plans/`):
+El desarrollo siguió un plan por fases (ver `/Users/juanpablo/.claude/plans/`):
 
-0. **Fundaciones** — monorepo, infra, Docker _(actual)_
-1. Auth, usuarios y perfil (onboarding con parsing de CV)
-2. Ingesta de vacantes y catálogo
-3. Motor de IA: personalización de CV/carta y matching
-4. Aplicaciones, feed swipe y dashboard kanban
-5. Chatbot (soporte + career coach)
-6. Monetización (Stripe), landing final y pulido
-7. App móvil (Expo)
+0. ✅ Fundaciones — monorepo, infra, Docker
+1. ✅ Auth, usuarios y perfil (onboarding con parsing de CV)
+2. ✅ Ingesta de vacantes y catálogo
+3. ✅ Motor de IA: personalización de CV/carta y matching
+4. ✅ Aplicaciones, feed swipe y dashboard kanban
+5. ✅ Chatbot (soporte + career coach)
+6. ✅ Monetización (Stripe), landing final y pulido
+7. ✅ App móvil (Expo) — Expo Router, feed swipe nativo, tracking, coach,
+   push notifications (Expo Notifications) y sincronización en tiempo real
+   (WebSocket) compartida con la web

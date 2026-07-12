@@ -4,9 +4,11 @@ import {
   profileSchema,
   updateAccountSchema,
   changePasswordSchema,
+  pushTokenSchema,
   type ProfileInput,
   type UpdateAccountInput,
   type ChangePasswordInput,
+  type PushTokenInput,
 } from '@nab/shared';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -58,5 +60,15 @@ export class UsersController {
   @ApiOperation({ summary: 'Saldo de créditos (desde el ledger)' })
   async credits(@CurrentUser() user: JwtUser) {
     return { credits: await this.users.getCreditBalance(user.userId) };
+  }
+
+  @Put('push-token')
+  @ApiOperation({ summary: 'Registra el token de Expo Notifications del dispositivo (app móvil)' })
+  async setPushToken(
+    @CurrentUser() user: JwtUser,
+    @Body(new ZodValidationPipe(pushTokenSchema)) body: PushTokenInput,
+  ) {
+    await this.users.setPushToken(user.userId, body.token);
+    return { ok: true };
   }
 }

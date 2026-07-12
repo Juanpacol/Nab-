@@ -3,6 +3,13 @@ import type { Prisma, ApplicationStatus } from '@nab/database';
 import { CREDIT_COSTS, type CreateApplicationInput } from '@nab/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CreditsService } from '../billing/credits.service.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
+import { PushService } from '../notifications/push.service.js';
+
+const STATUS_PUSH_TEXT: Partial<Record<ApplicationStatus, string>> = {
+  INTERVIEW: '¡Tienes una entrevista programada!',
+  OFFER: '¡Recibiste una oferta! 🎉',
+};
 
 const JOB_SUMMARY = {
   id: true,
@@ -18,6 +25,8 @@ export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly credits: CreditsService,
+    private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
   ) {}
 
   /**
@@ -66,6 +75,10 @@ export class ApplicationsService {
     });
 
     await this.credits.consume(userId, CREDIT_COSTS.APPLICATION, 'APPLICATION', application.id);
+    this.realtime.emitToUser(userId, 'application.status_changed', {
+      applicationId: application.id,
+      status: 'APPLIED',
+    });
     return { application, applyUrl: job.applyUrl, alreadyApplied: false };
   }
 
@@ -110,7 +123,7 @@ export class ApplicationsService {
   /** Cambia el estado (kanban) y registra el evento; fija submittedAt al aplicar. */
   async updateStatus(userId: string, id: string, status: ApplicationStatus, notes?: string) {
     await this.assertOwned(userId, id);
-    return this.prisma.application.update({
+    const updated = await this.prisma.application.update({
       where: { id },
       data: {
         status,
@@ -120,8 +133,30 @@ export class ApplicationsService {
           create: { eventType: 'status_changed', payload: { status, ...(notes ? { notes } : {}) } },
         },
       },
-      select: { id: true, status: true, submittedAt: true },
+      select: {
+        id: true,
+        status: true,
+        submittedAt: true,
+        job: { select: { title: true, company: true } },
+        user: { select: { expoPushToken: true } },
+      },
     });
+    this.realtime.emitToUser(userId, 'application.status_changed', {
+      applicationId: id,
+      status: updated.status,
+    });
+
+    const pushText = STATUS_PUSH_TEXT[updated.status];
+    if (pushText && updated.user.expoPushToken) {
+      void this.push.send(
+        updated.user.expoPushToken,
+        pushText,
+        `${updated.job.title} en ${updated.job.company}`,
+        { applicationId: id },
+      );
+    }
+
+    return { id: updated.id, status: updated.status, submittedAt: updated.submittedAt };
   }
 
   /** Actualiza las notas de una aplicación. */

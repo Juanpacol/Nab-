@@ -204,6 +204,12 @@ export const checkoutSchema = z.object({
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
+// --- Notificaciones push (Fase 7, app móvil) ---
+export const pushTokenSchema = z.object({
+  token: z.string().min(1),
+});
+export type PushTokenInput = z.infer<typeof pushTokenSchema>;
+
 // --- Chat ---
 export const chatMessageSchema = z.object({
   sessionId: z.string().optional(),

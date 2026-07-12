@@ -18,6 +18,8 @@ import { ApplicationsModule } from './modules/applications/applications.module.j
 import { AiModule } from './modules/ai/ai.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
+import { RealtimeModule } from './modules/realtime/realtime.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { ChatModule } from './modules/chat/chat.module.js';
     StorageModule,
     HealthModule,
     AuthModule,
+    RealtimeModule,
+    NotificationsModule,
     UsersModule,
     JobsModule,
     ApplicationsModule,

@@ -60,6 +60,11 @@ export class UsersService {
     await this.tokens.revokeAll(userId);
   }
 
+  /** Registra (o limpia) el token de Expo Notifications del dispositivo móvil. */
+  async setPushToken(userId: string, token: string): Promise<void> {
+    await this.prisma.user.update({ where: { id: userId }, data: { expoPushToken: token } });
+  }
+
   /** Saldo de créditos calculado desde el ledger (fuente de verdad). */
   async getCreditBalance(userId: string): Promise<number> {
     const result = await this.prisma.creditLedger.aggregate({

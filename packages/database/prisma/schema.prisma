@@ -101,6 +101,7 @@ model User {
   plan            Plan      @default(FREE)
   creditsRemaining Int      @default(5) // caché denormalizado; la fuente de verdad es CreditLedger
   emailVerifiedAt DateTime?
+  expoPushToken   String?   // token de Expo Notifications (app móvil, Fase 7)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

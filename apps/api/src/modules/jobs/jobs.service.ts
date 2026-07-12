@@ -64,7 +64,40 @@ export class JobsService {
   /** Búsqueda semántica: ordena por distancia coseno del embedding (pgvector). */
   private async semanticSearch(input: JobSearchInput) {
     const vec = toPgVector(await embedQuery(input.query!));
-    const data = await this.prisma.$queryRawUnsafe<
+    const data = await this.rankByEmbedding(vec, input.limit);
+    return { data, nextCursor: null };
+  }
+
+  /**
+   * Feed "Para ti" (Fase 3): matching perfil↔vacante por similitud coseno.
+   * Construye un embedding del perfil (headline, resumen, skills, roles) y
+   * devuelve las vacantes activas más cercanas.
+   */
+  async forYou(userId: string, limit = 20) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: { headline: true, summary: true, skills: true, desiredRoles: true },
+    });
+    if (!profile) return { data: [], nextCursor: null };
+
+    const text = [
+      profile.headline ?? '',
+      profile.summary ?? '',
+      profile.skills.join(' '),
+      profile.desiredRoles.join(' '),
+    ]
+      .filter(Boolean)
+      .join('. ')
+      .trim();
+    if (!text) return { data: [], nextCursor: null };
+
+    const vec = toPgVector(await embedQuery(text));
+    return { data: await this.rankByEmbedding(vec, limit), nextCursor: null };
+  }
+
+  /** Vacantes activas ordenadas por cercanía coseno a un vector (pgvector/HNSW). */
+  private rankByEmbedding(vec: string, limit: number) {
+    return this.prisma.$queryRawUnsafe<
       Array<{
         id: string;
         title: string;
@@ -86,9 +119,8 @@ export class JobsService {
        ORDER BY embedding <=> $1::vector
        LIMIT $2`,
       vec,
-      input.limit,
+      limit,
     );
-    return { data, nextCursor: null };
   }
 
   async getById(id: string) {

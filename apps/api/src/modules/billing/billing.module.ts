@@ -1,8 +1,15 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
+import { CreditsService } from './credits.service.js';
 
 /**
- * Facturación (Fase 6): Stripe Checkout, webhooks (grant de créditos por ciclo
- * vía CreditLedger), Customer Portal, gestión de planes y medición de créditos.
+ * Facturación (Fase 6): Stripe Checkout, webhooks, Customer Portal y planes.
+ *
+ * Ya en Fase 3 expone `CreditsService` (global) para el consumo transaccional
+ * de créditos vía CreditLedger, usado por el motor de IA al generar CV/cartas.
  */
-@Module({})
+@Global()
+@Module({
+  providers: [CreditsService],
+  exports: [CreditsService],
+})
 export class BillingModule {}

@@ -1,57 +1,55 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Badge, Card } from '@nab/ui';
-import { searchJobs, formatSalary, type JobCard } from '@/lib/jobs';
-import { FiltersBar } from './filters-bar';
+import { apiFetch } from '@/lib/api';
+import { getAccessToken } from '@/lib/session';
+import { formatSalary, type JobCard } from '@/lib/jobs';
 import { SaveJobButton } from '@/components/save-job-button';
 
-export const metadata: Metadata = { title: 'Explorar vacantes' };
+export const metadata: Metadata = { title: 'Para ti' };
 
-export default async function JobsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | undefined>>;
-}) {
-  const sp = await searchParams;
-  let result: { data: JobCard[]; nextCursor: string | null } = { data: [], nextCursor: null };
+/**
+ * Feed "Para ti" (Fase 3): vacantes recomendadas por matching semántico
+ * perfil↔vacante, con el porcentaje de match en cada card.
+ */
+export default async function ForYouPage() {
+  const access = await getAccessToken();
+  let data: JobCard[] = [];
   let error: string | null = null;
   try {
-    result = await searchJobs({
-      query: sp.query,
-      location: sp.location,
-      remote: sp.remote === 'true' ? true : undefined,
-      semantic: sp.semantic === 'true',
-      limit: 20,
+    const res = await apiFetch<{ data: JobCard[] }>('/jobs/for-you', {
+      accessToken: access ?? undefined,
     });
+    data = res.data;
   } catch {
-    error = 'No se pudieron cargar las vacantes. ¿Está la API arriba?';
+    error = 'No se pudieron cargar tus recomendaciones.';
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="font-display text-3xl text-foreground">Explorar vacantes</h1>
-          <p className="mt-1 text-muted">Filtra por puesto, ubicación o busca con IA.</p>
+          <h1 className="font-display text-3xl text-foreground">Para ti</h1>
+          <p className="mt-1 text-muted">Vacantes que encajan con tu perfil, ordenadas por match.</p>
         </div>
-        <Link href="/jobs/for-you" className="text-sm text-primary hover:underline">
-          🎯 Para ti →
+        <Link href="/jobs" className="text-sm text-primary hover:underline">
+          Explorar todo →
         </Link>
       </div>
 
-      <FiltersBar />
-
       {error ? (
         <Card className="p-6 text-center text-sm text-danger">{error}</Card>
-      ) : result.data.length === 0 ? (
+      ) : data.length === 0 ? (
         <Card className="p-10 text-center">
-          <p className="text-4xl">🔍</p>
-          <p className="mt-3 font-display text-xl text-foreground">Sin resultados</p>
-          <p className="mt-1 text-sm text-muted">Ajusta los filtros o sincroniza el catálogo.</p>
+          <p className="text-4xl">🎯</p>
+          <p className="mt-3 font-display text-xl text-foreground">Aún no hay recomendaciones</p>
+          <p className="mt-1 text-sm text-muted">
+            Completa tu perfil (headline, skills, roles deseados) para activar el matching.
+          </p>
         </Card>
       ) : (
         <ul className="space-y-3">
-          {result.data.map((job) => {
+          {data.map((job) => {
             const salary = formatSalary(job);
             return (
               <li key={job.id}>
@@ -71,11 +69,10 @@ export default async function JobsPage({
                     </div>
                   </Link>
                   <div className="flex items-center gap-3">
-                    {job.remote && <Badge variant="primary">Remoto</Badge>}
                     {typeof job.score === 'number' && (
-                      <span className="font-mono text-xs text-success">
-                        {Math.round(job.score * 100)}%
-                      </span>
+                      <Badge variant={job.score >= 0.75 ? 'primary' : undefined}>
+                        {Math.round(job.score * 100)}% match
+                      </Badge>
                     )}
                     {salary && <span className="font-mono text-sm text-foreground">{salary}</span>}
                     <SaveJobButton jobId={job.id} />

@@ -45,6 +45,14 @@ export class JobsController {
     return this.jobs.search(input);
   }
 
+  @Get('for-you')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Feed "Para ti": matching semántico perfil↔vacante' })
+  forYou(@CurrentUser() user: JwtUser) {
+    return this.jobs.forYou(user.userId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Detalle de una vacante' })
   async detail(@Param('id') id: string) {

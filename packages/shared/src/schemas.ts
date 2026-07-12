@@ -155,6 +155,42 @@ export const parsedResumeSchema = z.object({
 });
 export type ParsedResume = z.infer<typeof parsedResumeSchema>;
 
+// --- IA: generación de CV personalizado (Fase 3) ---
+export const generatedExperienceSchema = z.object({
+  company: z.string(),
+  role: z.string(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  bullets: z.array(z.string()).default([]),
+});
+
+export const generatedResumeSchema = z.object({
+  headline: z.string(),
+  summary: z.string(),
+  skills: z.array(z.string()),
+  experience: z.array(generatedExperienceSchema),
+  education: z.array(educationItemSchema),
+});
+export type GeneratedResume = z.infer<typeof generatedResumeSchema>;
+
+export const coverLetterToneSchema = z.enum([
+  'professional',
+  'enthusiastic',
+  'concise',
+  'friendly',
+]);
+export type CoverLetterTone = z.infer<typeof coverLetterToneSchema>;
+
+/** Peticiones de generación (el CV/carta se personaliza para una vacante). */
+export const generateResumeSchema = z.object({ jobId: z.string() });
+export type GenerateResumeInput = z.infer<typeof generateResumeSchema>;
+
+export const generateCoverLetterSchema = z.object({
+  jobId: z.string(),
+  tone: coverLetterToneSchema.default('professional'),
+});
+export type GenerateCoverLetterInput = z.infer<typeof generateCoverLetterSchema>;
+
 // --- Chat ---
 export const chatMessageSchema = z.object({
   sessionId: z.string().optional(),

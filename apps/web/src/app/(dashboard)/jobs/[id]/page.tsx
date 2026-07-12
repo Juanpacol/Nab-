@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { Badge, Button, Card } from '@nab/ui';
 import { getJob, formatSalary } from '@/lib/jobs';
 import { SaveJobButton } from '@/components/save-job-button';
+import { GenerateDocsPanel } from '@/components/generate-docs-panel';
 
 export const metadata: Metadata = { title: 'Detalle de vacante' };
 
@@ -57,6 +58,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           {job.description}
         </p>
       </Card>
+
+      <GenerateDocsPanel jobId={job.id} jobTitle={job.title} />
     </div>
   );
 }

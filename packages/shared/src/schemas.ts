@@ -134,6 +134,12 @@ export const updateApplicationStatusSchema = z.object({
   notes: z.string().optional(),
 });
 
+export const applicationNotesSchema = z.object({
+  notes: z.string().max(2000),
+});
+export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
+export type UpdateApplicationStatusInput = z.infer<typeof updateApplicationStatusSchema>;
+
 // --- IA: extracción estructurada de vacante (schema forzado en el LLM) ---
 export const jobRequirementsSchema = z.object({
   requiredSkills: z.array(z.string()),

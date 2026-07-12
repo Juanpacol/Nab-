@@ -1,38 +1,73 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { PrismaService } from '../../prisma/prisma.service.js';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { jobSearchSchema } from '@nab/shared';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { CurrentUser, type JwtUser } from '../../common/decorators/current-user.decorator.js';
+import { JobsService } from './jobs.service.js';
 
 /**
- * Endpoint de vacantes. En Fase 0 expone un listado básico sobre los datos
- * demo sembrados, para validar el flujo end-to-end (DB → API → web).
- * La búsqueda avanzada y semántica se añade en la Fase 2.
+ * Catálogo de vacantes (Fase 2): búsqueda con filtros y semántica, detalle,
+ * guardar vacante y disparo manual de la sincronización.
  */
 @ApiTags('jobs')
 @Controller('jobs')
 export class JobsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly jobs: JobsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lista vacantes activas (paginación simple)' })
-  async list(@Query('limit') limit = '20') {
-    const take = Math.min(Number(limit) || 20, 50);
-    const jobs = await this.prisma.job.findMany({
-      where: { isActive: true },
-      orderBy: { postedAt: 'desc' },
-      take,
-      select: {
-        id: true,
-        title: true,
-        company: true,
-        companyLogoUrl: true,
-        location: true,
-        remote: true,
-        salaryMin: true,
-        salaryMax: true,
-        currency: true,
-        postedAt: true,
-      },
+  @ApiOperation({ summary: 'Busca vacantes con filtros o búsqueda semántica' })
+  async list(
+    @Query('query') query?: string,
+    @Query('location') location?: string,
+    @Query('remote') remote?: string,
+    @Query('salaryMin') salaryMin?: string,
+    @Query('semantic') semantic?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const input = jobSearchSchema.parse({
+      query: query || undefined,
+      location: location || undefined,
+      remote: remote === undefined ? undefined : remote === 'true',
+      salaryMin: salaryMin ? Number(salaryMin) : undefined,
+      semantic: semantic === 'true',
+      cursor: cursor || undefined,
+      limit: limit ? Number(limit) : undefined,
     });
-    return { data: jobs, count: jobs.length };
+    return this.jobs.search(input);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Detalle de una vacante' })
+  async detail(@Param('id') id: string) {
+    const job = await this.jobs.getById(id);
+    if (!job) throw new NotFoundException('Vacante no encontrada');
+    // No exponemos el embedding en la respuesta.
+    const { embedding: _embedding, ...rest } = job as typeof job & { embedding?: unknown };
+    return rest;
+  }
+
+  @Post(':id/save')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Guarda una vacante para el usuario' })
+  save(@CurrentUser() user: JwtUser, @Param('id') id: string) {
+    return this.jobs.save(user.userId, id);
+  }
+
+  @Post('sync')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Dispara una sincronización de vacantes (dev/admin)' })
+  sync() {
+    return this.jobs.triggerSync();
   }
 }

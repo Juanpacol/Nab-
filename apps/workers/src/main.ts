@@ -4,24 +4,46 @@ import { connection } from './redis.js';
 import { logger } from './logger.js';
 import { startEmailWorker } from './processors/email.processor.js';
 import { startCvParseWorker } from './processors/cv-parse.processor.js';
+import { startIngestWorker } from './processors/ingest.processor.js';
+import { startEmbeddingsWorker } from './processors/embeddings.processor.js';
 
 /**
- * Proceso de workers de Nab. Registra las colas y arranca los procesadores.
- * Fases futuras añaden: ingesta de vacantes (Fase 2), embeddings (Fase 2),
- * generación de CV/carta (Fase 3), resúmenes semanales (Fase 4).
+ * Proceso de workers de Nab. Registra las colas, arranca los procesadores y
+ * programa la ingesta periódica de vacantes.
  */
 
-// Colas registradas (los productores viven en la API).
+const jobIngestQueue = new Queue(QUEUE_NAMES.JOB_INGEST, { connection });
+
 export const queues = {
-  jobIngest: new Queue(QUEUE_NAMES.JOB_INGEST, { connection }),
+  jobIngest: jobIngestQueue,
   embeddings: new Queue(QUEUE_NAMES.EMBEDDINGS, { connection }),
   aiGeneration: new Queue(QUEUE_NAMES.AI_GENERATION, { connection }),
   email: new Queue(QUEUE_NAMES.EMAIL, { connection }),
 };
 
-const workers = [startEmailWorker(), startCvParseWorker()];
+const workers = [
+  startEmailWorker(),
+  startCvParseWorker(),
+  startIngestWorker(),
+  startEmbeddingsWorker(),
+];
 
-logger.info('⚙️  Workers de Nab iniciados: email, cv-parse');
+async function scheduleIngest() {
+  // Ingesta recurrente cada 6 horas (idempotente por clave de repetición).
+  await jobIngestQueue.add(
+    'sync-all',
+    {},
+    { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: 'ingest-recurrente' },
+  );
+  // En desarrollo, una ejecución inmediata para poblar el catálogo.
+  if (process.env.NODE_ENV !== 'production' || process.env.INGEST_ON_START === 'true') {
+    await jobIngestQueue.add('sync-all', {});
+  }
+}
+
+void scheduleIngest();
+
+logger.info('⚙️  Workers de Nab iniciados: email, cv-parse, ingest, embeddings');
 
 async function shutdown() {
   logger.info('Cerrando workers…');

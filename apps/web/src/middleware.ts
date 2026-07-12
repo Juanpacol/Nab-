@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PROTECTED = [
   '/dashboard',
   '/feed',
+  '/jobs',
   '/applications',
   '/coach',
   '/profile',
@@ -43,6 +44,7 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/feed/:path*',
+    '/jobs/:path*',
     '/applications/:path*',
     '/coach/:path*',
     '/profile/:path*',

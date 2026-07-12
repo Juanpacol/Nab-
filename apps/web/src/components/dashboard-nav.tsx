@@ -7,6 +7,7 @@ import { cn } from '@nab/ui';
 const NAV = [
   { href: '/dashboard', label: 'Inicio', icon: '🏠' },
   { href: '/feed', label: 'Descubrir', icon: '🔥' },
+  { href: '/jobs', label: 'Explorar', icon: '🔍' },
   { href: '/applications', label: 'Aplicaciones', icon: '📋' },
   { href: '/coach', label: 'Coach IA', icon: '💬' },
   { href: '/profile', label: 'Perfil', icon: '👤' },

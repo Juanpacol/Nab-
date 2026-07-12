@@ -3,6 +3,7 @@
  * end-to-end: DTOs de la API, formularios del frontend y respuestas de IA.
  */
 import { z } from 'zod';
+import { PAID_PLANS, type PlanId } from './plans.js';
 
 // --- Enums (deben coincidir con schema.prisma) ---
 export const remotePreferenceSchema = z.enum(['ANY', 'REMOTE', 'HYBRID', 'ONSITE']);
@@ -196,6 +197,12 @@ export const generateCoverLetterSchema = z.object({
   tone: coverLetterToneSchema.default('professional'),
 });
 export type GenerateCoverLetterInput = z.infer<typeof generateCoverLetterSchema>;
+
+// --- Facturación (Fase 6) ---
+export const checkoutSchema = z.object({
+  planId: z.enum(PAID_PLANS as [PlanId, ...PlanId[]]),
+});
+export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
 // --- Chat ---
 export const chatMessageSchema = z.object({

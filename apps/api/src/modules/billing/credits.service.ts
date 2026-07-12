@@ -55,6 +55,40 @@ export class CreditsService {
     });
   }
 
+  /**
+   * Otorga créditos de forma transaccional (alta por suscripción/renovación):
+   * registra el asiento positivo en el ledger e incrementa el caché.
+   *
+   * Idempotente por `refId`: si ya existe un asiento con el mismo
+   * (userId, reason, refId) no vuelve a otorgar — necesario porque Stripe
+   * puede reintentar la entrega del mismo evento de webhook.
+   */
+  async grant(userId: string, amount: number, reason: CreditReason, refId?: string): Promise<number> {
+    return this.prisma.$transaction(async (tx) => {
+      if (refId) {
+        const existing = await tx.creditLedger.findFirst({
+          where: { userId, reason, refId },
+          select: { id: true },
+        });
+        if (existing) {
+          const current = await tx.user.findUniqueOrThrow({
+            where: { id: userId },
+            select: { creditsRemaining: true },
+          });
+          return current.creditsRemaining;
+        }
+      }
+
+      await tx.creditLedger.create({ data: { userId, delta: amount, reason, refId: refId ?? null } });
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { creditsRemaining: { increment: amount } },
+        select: { creditsRemaining: true },
+      });
+      return updated.creditsRemaining;
+    });
+  }
+
   /** Saldo real derivado del ledger (fuente de verdad), para reconciliar el caché. */
   async ledgerBalance(userId: string): Promise<number> {
     const agg = await this.prisma.creditLedger.aggregate({

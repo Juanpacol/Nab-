@@ -6,7 +6,9 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // rawBody: true expone `req.rawBody` (necesario para verificar la firma de
+  // los webhooks de Stripe, que requieren el cuerpo sin parsear).
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
 
   // Logging estructurado (Pino)
   app.useLogger(app.get(Logger));

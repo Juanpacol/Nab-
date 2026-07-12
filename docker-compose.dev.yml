@@ -1,0 +1,53 @@
+# Infraestructura local de desarrollo.
+# Levanta solo dependencias (no las apps); las apps corren con `pnpm dev`.
+#   pnpm docker:dev
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: nab
+      POSTGRES_PASSWORD: nab
+      POSTGRES_DB: nab
+    ports:
+      - '5432:5432'
+    volumes:
+      - nab_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U nab']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Almacenamiento S3-compatible (CVs, PDFs)
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - nab_miniodata:/data
+
+  # Servidor SMTP de pruebas + UI para ver correos
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # UI web
+
+volumes:
+  nab_pgdata:
+  nab_miniodata:

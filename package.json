@@ -1,0 +1,29 @@
+{
+  "name": "nab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nab — plataforma de automatización de búsqueda de empleo con IA",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "db:generate": "pnpm --filter @nab/database generate",
+    "db:migrate": "pnpm --filter @nab/database migrate",
+    "db:seed": "pnpm --filter @nab/database seed",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:up": "docker compose up --build"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.1.3",
+    "typescript": "^5.6.2"
+  }
+}

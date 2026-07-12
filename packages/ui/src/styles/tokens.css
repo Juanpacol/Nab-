@@ -1,0 +1,104 @@
+/* ============================================================
+   Nab Design System — Tokens de color y tema
+   Verde crecimiento (emerald) sobre neutros con sesgo cálido-verde.
+   Tema claro por defecto; oscuro vía prefers-color-scheme y data-theme.
+   ============================================================ */
+
+:root {
+  /* Superficies (neutros con leve sesgo verde) */
+  --nab-bg: #fafaf7;
+  --nab-surface: #ffffff;
+  --nab-surface-2: #f2f4f0;
+  --nab-border: #e3e6de;
+
+  /* Texto */
+  --nab-fg: #14201a;
+  --nab-fg-muted: #5c6b62;
+
+  /* Marca — emerald */
+  --nab-primary: #16a34a;
+  --nab-primary-hover: #128040;
+  --nab-primary-fg: #ffffff;
+  --nab-primary-soft: #e6f5ec;
+
+  /* Semánticos */
+  --nab-success: #16a34a;
+  --nab-warning: #d97706;
+  --nab-danger: #dc2626;
+  --nab-info: #2563eb;
+
+  /* Escala tipográfica base */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: 'Public Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  color-scheme: light;
+}
+
+/* Tema oscuro — vía preferencia del sistema */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --nab-bg: #0f1512;
+    --nab-surface: #161d19;
+    --nab-surface-2: #1e2823;
+    --nab-border: #2a352e;
+    --nab-fg: #eaf0ec;
+    --nab-fg-muted: #9aa89f;
+    --nab-primary: #2fbd63;
+    --nab-primary-hover: #34cf6c;
+    --nab-primary-fg: #06130b;
+    --nab-primary-soft: #14261c;
+    --nab-success: #2fbd63;
+    --nab-warning: #f59e0b;
+    --nab-danger: #ef4444;
+    --nab-info: #3b82f6;
+    color-scheme: dark;
+  }
+}
+
+/* Overrides explícitos del toggle (ganan sobre la media query en ambos sentidos) */
+:root[data-theme='light'] {
+  --nab-bg: #fafaf7;
+  --nab-surface: #ffffff;
+  --nab-surface-2: #f2f4f0;
+  --nab-border: #e3e6de;
+  --nab-fg: #14201a;
+  --nab-fg-muted: #5c6b62;
+  --nab-primary: #16a34a;
+  --nab-primary-hover: #128040;
+  --nab-primary-fg: #ffffff;
+  --nab-primary-soft: #e6f5ec;
+  --nab-success: #16a34a;
+  --nab-warning: #d97706;
+  --nab-danger: #dc2626;
+  --nab-info: #2563eb;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --nab-bg: #0f1512;
+  --nab-surface: #161d19;
+  --nab-surface-2: #1e2823;
+  --nab-border: #2a352e;
+  --nab-fg: #eaf0ec;
+  --nab-fg-muted: #9aa89f;
+  --nab-primary: #2fbd63;
+  --nab-primary-hover: #34cf6c;
+  --nab-primary-fg: #06130b;
+  --nab-primary-soft: #14261c;
+  --nab-success: #2fbd63;
+  --nab-warning: #f59e0b;
+  --nab-danger: #ef4444;
+  --nab-info: #3b82f6;
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -231,6 +231,44 @@ export class AiService {
     return text ?? mockCoverLetter(profile, job, tone);
   }
 
+  // --- Chat (Fase 5): primitiva de bajo nivel con soporte de tool-use ---
+
+  /**
+   * Una llamada de chat a Claude. Devuelve el texto y los tool_use pedidos (el
+   * ejecutor de herramientas vive en ChatService). En modo mock responde de
+   * forma determinista y sin herramientas, para que el bucle termine enseguida.
+   */
+  async chatComplete(
+    model: string,
+    system: string,
+    messages: Anthropic.MessageParam[],
+    tools?: Anthropic.Tool[],
+    maxTokens = 2048,
+  ): Promise<{ text: string; toolUses: Array<{ id: string; name: string; input: unknown }> }> {
+    if (!this.client) return { text: mockChatReply(messages), toolUses: [] };
+
+    const message = await this.client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system,
+      messages,
+      ...(tools && tools.length ? { tools } : {}),
+    });
+    this.logger.log(
+      `IA chat ${model} in=${message.usage.input_tokens} out=${message.usage.output_tokens}`,
+    );
+
+    let text = '';
+    const toolUses: Array<{ id: string; name: string; input: unknown }> = [];
+    for (const block of message.content) {
+      if (block.type === 'text') text += block.text;
+      else if (block.type === 'tool_use') {
+        toolUses.push({ id: block.id, name: block.name, input: block.input });
+      }
+    }
+    return { text, toolUses };
+  }
+
   // --- Fase 1: parsing de CV subido (se mantiene) ---
 
   async parseResume(resumeText: string): Promise<ParsedResume> {
@@ -324,6 +362,22 @@ function mockCoverLetter(
     `${profile.summary ?? 'Cuento con experiencia relevante para el rol.'}\n\n` +
     `Mis habilidades en ${profile.skills.slice(0, 4).join(', ')} encajan con lo que buscan.\n\n` +
     `Quedo a su disposición.\n\n(Carta generada en modo demo, tono ${tone}.)`
+  );
+}
+
+/** Respuesta de chat mock: usa el último mensaje del usuario para contextualizar. */
+function mockChatReply(messages: Anthropic.MessageParam[]): string {
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+  let text = '';
+  if (typeof lastUser?.content === 'string') text = lastUser.content;
+  else if (Array.isArray(lastUser?.content)) {
+    const b = lastUser.content.find((c) => c.type === 'text');
+    if (b && b.type === 'text') text = b.text;
+  }
+  return (
+    `(Respuesta demo — configura ANTHROPIC_API_KEY para respuestas reales con IA.) ` +
+    `Sobre "${text.slice(0, 80)}": te recomiendo concretar tu objetivo, apoyarte en tu ` +
+    `perfil y practicar con ejemplos. ¿Quieres que profundicemos en algún punto?`
   );
 }
 

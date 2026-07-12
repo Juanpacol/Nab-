@@ -1,15 +1,9 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Button, Card, StatusPill } from '@nab/ui';
+import { getCurrentUser } from '@/lib/session';
 
 export const metadata: Metadata = { title: 'Inicio' };
-
-const METRICS = [
-  { label: 'Aplicaciones esta semana', value: '14' },
-  { label: 'Tasa de respuesta', value: '38%' },
-  { label: 'Entrevistas activas', value: '3' },
-  { label: 'Créditos restantes', value: '200' },
-];
 
 const RECENT = [
   { role: 'Ingeniero Full Stack', company: 'Stripe', status: 'INTERVIEW' },
@@ -17,22 +11,36 @@ const RECENT = [
   { role: 'Data Analyst', company: 'Netflix', status: 'VIEWED' },
 ];
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const user = await getCurrentUser();
+  const firstName = user?.name?.split(' ')[0] ?? 'de nuevo';
+
+  const metrics = [
+    { label: 'Aplicaciones esta semana', value: '0' },
+    { label: 'Tasa de respuesta', value: '—' },
+    { label: 'Entrevistas activas', value: '0' },
+    { label: 'Créditos restantes', value: String(user?.creditsRemaining ?? 0) },
+  ];
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl text-foreground">Hola, Demo 👋</h1>
-          <p className="mt-1 text-muted">Esto es lo que pasó con tu búsqueda.</p>
+          <h1 className="font-display text-3xl text-foreground">Hola, {firstName} 👋</h1>
+          <p className="mt-1 text-muted">
+            {user?.onboarded
+              ? 'Esto es lo que pasó con tu búsqueda.'
+              : 'Completa tu perfil para empezar a recibir vacantes con match.'}
+          </p>
         </div>
-        <Link href="/feed">
-          <Button>Descubrir vacantes</Button>
+        <Link href={user?.onboarded ? '/feed' : '/onboarding'}>
+          <Button>{user?.onboarded ? 'Descubrir vacantes' : 'Completar perfil'}</Button>
         </Link>
       </div>
 
       {/* Métricas */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {METRICS.map((m) => (
+        {metrics.map((m) => (
           <Card key={m.label} className="p-5">
             <p className="font-mono text-3xl text-foreground">{m.value}</p>
             <p className="mt-1 text-sm text-muted">{m.label}</p>

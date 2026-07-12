@@ -1,11 +1,17 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Badge } from '@nab/ui';
 import { Logo } from '@/components/logo';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { DashboardNav } from '@/components/dashboard-nav';
+import { UserMenu } from '@/components/user-menu';
+import { getCurrentUser } from '@/lib/session';
 
-/** Shell del panel: topbar con medidor de créditos + nav lateral/inferior. */
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+/** Shell del panel: topbar con créditos reales + nav lateral/inferior. */
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur-md">
@@ -14,10 +20,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Logo />
           </Link>
           <div className="flex items-center gap-3">
-            {/* Medidor de créditos (se conecta en Fase 6) */}
-            <Badge variant="primary">⚡ 200 créditos</Badge>
+            <Badge variant="primary">⚡ {user.creditsRemaining} créditos</Badge>
             <ThemeToggle />
-            <div className="h-9 w-9 rounded-full bg-surface-2" aria-label="Cuenta" />
+            <UserMenu name={user.name} email={user.email} />
           </div>
         </div>
       </header>

@@ -5,6 +5,8 @@ import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 
 import { PrismaModule } from './prisma/prisma.module.js';
+import { QueuesModule } from './queues/queues.module.js';
+import { StorageModule } from './storage/storage.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
 
@@ -32,6 +34,8 @@ import { ChatModule } from './modules/chat/chat.module.js';
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
+    QueuesModule,
+    StorageModule,
     HealthModule,
     AuthModule,
     UsersModule,

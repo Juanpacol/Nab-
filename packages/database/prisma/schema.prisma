@@ -104,16 +104,52 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  profile       Profile?
-  resumes       Resume[]
-  coverLetters  CoverLetter[]
-  applications  Application[]
-  subscription  Subscription?
-  creditLedger  CreditLedger[]
-  chatSessions  ChatSession[]
-  integrations  Integration[]
+  profile            Profile?
+  resumes            Resume[]
+  coverLetters       CoverLetter[]
+  applications       Application[]
+  subscription       Subscription?
+  creditLedger       CreditLedger[]
+  chatSessions       ChatSession[]
+  integrations       Integration[]
+  refreshTokens      RefreshToken[]
+  verificationTokens VerificationToken[]
 
   @@index([email])
+}
+
+enum VerificationTokenType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+// Refresh tokens con rotación: se guarda solo el hash para poder revocar.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Tokens de un solo uso para verificación de email y reset de contraseña.
+model VerificationToken {
+  id        String                @id @default(cuid())
+  userId    String
+  tokenHash String                @unique
+  type      VerificationTokenType
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
 }
 
 model Profile {

@@ -17,6 +17,8 @@ RUN pnpm install --frozen-lockfile=false
 FROM deps AS build
 COPY . .
 RUN pnpm --filter @nab/database generate
+RUN pnpm --filter @nab/shared build
+RUN pnpm --filter @nab/database build
 RUN pnpm --filter @nab/api build
 
 # --- Runner ---

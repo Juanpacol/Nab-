@@ -15,6 +15,7 @@ RUN pnpm install --frozen-lockfile=false
 FROM deps AS build
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter @nab/shared build
 RUN pnpm --filter @nab/web build
 
 # El output standalone incluye solo lo necesario para correr Next.

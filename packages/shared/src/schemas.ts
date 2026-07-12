@@ -32,6 +32,53 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const refreshSchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Correo inválido'),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8, 'Mínimo 8 caracteres'),
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Ingresa tu contraseña actual'),
+  newPassword: z.string().min(8, 'Mínimo 8 caracteres'),
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+export const updateAccountSchema = z.object({
+  name: z.string().min(2, 'Ingresa tu nombre').max(80).optional(),
+  avatarUrl: z.string().url().optional(),
+});
+export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
+
+/** Respuesta pública del usuario autenticado (sin datos sensibles). */
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  plan: string;
+  creditsRemaining: number;
+  emailVerified: boolean;
+  onboarded: boolean;
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
 // --- Perfil ---
 export const experienceItemSchema = z.object({
   company: z.string(),

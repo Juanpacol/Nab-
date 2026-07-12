@@ -1,0 +1,12 @@
+{
+  "extends": "@nab/config/tsconfig/base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "./dist",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "declaration": true,
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"]
+}

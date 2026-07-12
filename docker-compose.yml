@@ -77,6 +77,9 @@ services:
       dockerfile: docker/web.Dockerfile
     environment:
       NODE_ENV: production
+      # URL interna (red de compose) para llamadas server-side
+      API_URL: http://api:4000
+      # URL pública para el navegador
       NEXT_PUBLIC_API_URL: http://localhost:4000
     ports:
       - '3000:3000'

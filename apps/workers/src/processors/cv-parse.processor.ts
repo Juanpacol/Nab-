@@ -1,4 +1,5 @@
 import { Worker } from 'bullmq';
+import * as Sentry from '@sentry/node';
 // Importamos la implementación interna para evitar el modo debug de pdf-parse
 // (su index.js intenta leer un PDF de prueba al importarse en ESM).
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
@@ -55,8 +56,9 @@ export function startCvParseWorker(): Worker {
     { connection },
   );
 
-  worker.on('failed', (job, err) =>
-    logger.error({ jobId: job?.id, err: err.message }, 'CV parse falló'),
-  );
+  worker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'CV parse falló');
+    Sentry.captureException(err);
+  });
   return worker;
 }

@@ -341,6 +341,7 @@ model CreditLedger {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, reason, refId])
   @@index([userId, createdAt])
 }
 

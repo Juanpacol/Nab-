@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 # --------- Imagen de los Workers (BullMQ) ---------
 FROM node:20-alpine AS base
-RUN corepack enable && apk add --no-cache libc6-compat
+# openssl es requisito de los engines de Prisma en Alpine (sin él, detecta mal
+# la versión de OpenSSL y falla al arrancar).
+RUN corepack enable && apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 FROM base AS deps
@@ -10,7 +12,7 @@ COPY packages/config/package.json ./packages/config/
 COPY packages/database/package.json ./packages/database/
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/workers/package.json ./apps/workers/
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
@@ -26,6 +28,10 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/workers/dist ./apps/workers/dist
 COPY --from=build /app/apps/workers/package.json ./apps/workers/
+# pnpm enlaza las dependencias DIRECTAS de @nab/workers como symlinks dentro
+# de apps/workers/node_modules → ../../node_modules/.pnpm/...; sin copiar
+# también esta carpeta, "node apps/workers/dist/main.js" no las encuentra.
+COPY --from=build /app/apps/workers/node_modules ./apps/workers/node_modules
 USER nab
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
   CMD pgrep -f "apps/workers/dist/main.js" > /dev/null || exit 1

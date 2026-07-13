@@ -1,4 +1,5 @@
 import { Worker, Queue } from 'bullmq';
+import * as Sentry from '@sentry/node';
 import { prisma, type JobSourceProvider } from '@nab/database';
 import { QUEUE_NAMES } from '@nab/shared';
 import { connection } from '../redis.js';
@@ -94,8 +95,9 @@ export function startIngestWorker(): Worker {
     { connection },
   );
 
-  worker.on('failed', (job, err) =>
-    logger.error({ jobId: job?.id, err: err.message }, 'Ingesta falló'),
-  );
+  worker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Ingesta falló');
+    Sentry.captureException(err);
+  });
   return worker;
 }

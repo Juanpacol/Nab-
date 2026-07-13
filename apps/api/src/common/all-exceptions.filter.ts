@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
 import type { Request, Response } from 'express';
 
 /** Filtro global: normaliza todas las excepciones a un cuerpo JSON consistente. */
@@ -30,6 +31,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (status >= 500) {
       this.logger.error(exception instanceof Error ? exception.stack : String(exception));
+      Sentry.captureException(exception);
     }
 
     response.status(status).json({

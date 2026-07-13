@@ -1,7 +1,9 @@
+import './instrument.js';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '@nab/shared';
 import { connection } from './redis.js';
 import { logger } from './logger.js';
+import { validateEnv } from './env.validation.js';
 import { startEmailWorker } from './processors/email.processor.js';
 import { startCvParseWorker } from './processors/cv-parse.processor.js';
 import { startIngestWorker } from './processors/ingest.processor.js';
@@ -11,6 +13,10 @@ import { startEmbeddingsWorker } from './processors/embeddings.processor.js';
  * Proceso de workers de Nab. Registra las colas, arranca los procesadores y
  * programa la ingesta periódica de vacantes.
  */
+
+// Falla rápido con un mensaje claro si faltan secretos/config de producción,
+// en vez de arrancar con defaults de desarrollo o en modo mock silencioso.
+validateEnv(process.env);
 
 const jobIngestQueue = new Queue(QUEUE_NAMES.JOB_INGEST, { connection });
 

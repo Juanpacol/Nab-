@@ -1,4 +1,5 @@
 import { Worker } from 'bullmq';
+import * as Sentry from '@sentry/node';
 import { prisma } from '@nab/database';
 import { QUEUE_NAMES, jobEmbeddingText, toPgVector } from '@nab/shared';
 import { connection } from '../redis.js';
@@ -32,8 +33,9 @@ export function startEmbeddingsWorker(): Worker {
     { connection, concurrency: 4 },
   );
 
-  worker.on('failed', (job, err) =>
-    logger.error({ jobId: job?.id, err: err.message }, 'Embedding falló'),
-  );
+  worker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Embedding falló');
+    Sentry.captureException(err);
+  });
   return worker;
 }

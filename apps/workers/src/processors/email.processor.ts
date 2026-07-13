@@ -1,4 +1,5 @@
 import { Worker } from 'bullmq';
+import * as Sentry from '@sentry/node';
 import nodemailer from 'nodemailer';
 import { QUEUE_NAMES } from '@nab/shared';
 import { connection } from '../redis.js';
@@ -7,7 +8,8 @@ import { logger } from '../logger.js';
 type EmailJob =
   | { type: 'verify-email'; to: string; token: string }
   | { type: 'password-reset'; to: string; token: string }
-  | { type: 'welcome'; to: string; name: string | null };
+  | { type: 'welcome'; to: string; name: string | null }
+  | { type: 'payment-failed'; to: string };
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST ?? 'localhost',
@@ -41,6 +43,13 @@ function render(job: EmailJob): { subject: string; html: string } {
         subject: '¡Tu búsqueda de empleo empieza ahora!',
         html: `<p>Hola ${job.name ?? ''}, tu cuenta de Nab está lista.</p>`,
       };
+    case 'payment-failed':
+      return {
+        subject: 'No pudimos procesar tu pago en Nab',
+        html: `<p>El cobro de tu suscripción no se pudo completar.</p>
+          <p>Actualiza tu método de pago para no perder el acceso a tus créditos:</p>
+          <p><a href="${WEB_URL}/billing">Actualizar método de pago</a></p>`,
+      };
   }
 }
 
@@ -57,8 +66,9 @@ export function startEmailWorker(): Worker {
     { connection },
   );
 
-  worker.on('failed', (job, err) =>
-    logger.error({ jobId: job?.id, err: err.message }, 'Envío de correo falló'),
-  );
+  worker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err: err.message }, 'Envío de correo falló');
+    Sentry.captureException(err);
+  });
   return worker;
 }

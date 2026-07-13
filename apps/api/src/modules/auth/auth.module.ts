@@ -13,7 +13,7 @@ import { VerificationService } from './verification.service.js';
   imports: [
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET ?? 'nab-dev-secret-cambia-esto',
+      secret: process.env.JWT_SECRET,
     }),
   ],
   controllers: [AuthController],

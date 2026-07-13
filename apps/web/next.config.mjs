@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -20,4 +22,13 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Sin SENTRY_AUTH_TOKEN (p.ej. en dev o en un fork sin cuenta de Sentry) esto
+// deshabilita solo la subida de source maps, no rompe el build.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  widenClientFileUpload: false,
+  webpack: { treeshake: { removeDebugLogging: true } },
+});

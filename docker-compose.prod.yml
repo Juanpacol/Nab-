@@ -1,0 +1,150 @@
+# Despliegue de producción en el VPS: postgres + redis + api + workers detrás
+# de Caddy (TLS automático). La web NO está aquí: se despliega aparte en
+# Vercel (ver docs/DEPLOY.md). El storage y el email son proveedores externos
+# reales (p.ej. Cloudflare R2, Resend) — no hay minio/mailpit en este archivo.
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml run --rm migrate
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Requiere /opt/nab/.env (chmod 600, fuera de git) con TODAS las variables
+# reales: POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS (dominio real, sin
+# localhost), S3_*, SMTP_*, STRIPE_*, GHCR_IMAGE_TAG, API_DOMAIN. La API y los
+# workers fallan al arrancar si falta algo (ver env.validation.ts).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-nab}
+    volumes:
+      - nab_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-nab}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Aplica migraciones; nunca siembra datos demo (no hay SEED_DEMO aquí a propósito).
+  migrate:
+    image: ghcr.io/${GHCR_OWNER}/nab-api:${GHCR_IMAGE_TAG:-latest}
+    command: pnpm --filter @nab/database migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nab}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    image: ghcr.io/${GHCR_OWNER}/nab-api:${GHCR_IMAGE_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nab}?schema=public
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      JWT_SECRET: ${JWT_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_GENERATION: ${AI_MODEL_GENERATION:-claude-sonnet-5}
+      AI_MODEL_FAST: ${AI_MODEL_FAST:-claude-haiku-4-5}
+      AI_MOCK: ${AI_MOCK:-false}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    logging: *default-logging
+
+  workers:
+    image: ghcr.io/${GHCR_OWNER}/nab-workers:${GHCR_IMAGE_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nab}?schema=public
+      REDIS_URL: redis://redis:6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_FAST: ${AI_MODEL_FAST:-claude-haiku-4-5}
+      AI_MOCK: ${AI_MOCK:-false}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      INGEST_MOCK: ${INGEST_MOCK:-false}
+      GREENHOUSE_BOARDS: ${GREENHOUSE_BOARDS}
+      LEVER_BOARDS: ${LEVER_BOARDS}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY}
+      JSEARCH_RAPIDAPI_KEY: ${JSEARCH_RAPIDAPI_KEY}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL}
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Único servicio con puertos publicados: TLS automático (Let's Encrypt) y
+  # proxy (incluye WebSockets) hacia la API. Ver docker/Caddyfile.
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - nab_caddy_data:/data
+      - nab_caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+
+volumes:
+  nab_pgdata:
+  nab_caddy_data:
+  nab_caddy_config:

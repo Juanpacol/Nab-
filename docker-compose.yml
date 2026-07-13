@@ -1,17 +1,19 @@
 # Aplicación completa lista para consumir: web + api + workers + postgres + redis.
 #   docker compose up --build
-# Requiere un archivo .env (ver .env.example).
+# Requiere un archivo .env (ver .env.example) con, como mínimo, POSTGRES_PASSWORD,
+# JWT_SECRET, S3_* y STRIPE_* reales si NODE_ENV=production — la API y los
+# workers fallan al arrancar si faltan (ver env.validation.ts).
 services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_USER: nab
-      POSTGRES_PASSWORD: nab
-      POSTGRES_DB: nab
+      POSTGRES_USER: ${POSTGRES_USER:-nab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nab}
+      POSTGRES_DB: ${POSTGRES_DB:-nab}
     volumes:
       - nab_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nab']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-nab}']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,14 +26,35 @@ services:
       timeout: 3s
       retries: 5
 
-  # Aplica migraciones y siembra datos; luego termina.
+  # Almacenamiento S3-compatible por defecto (self-hosted). Para producción,
+  # apunta S3_* a un proveedor gestionado (p.ej. Cloudflare R2) vía .env y
+  # este servicio queda sin usar (no lo incluyas en docker-compose.prod.yml).
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minio}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minio12345}
+    volumes:
+      - nab_miniodata:/data
+
+  # Servidor SMTP por defecto (self-hosted, sin entrega real). Para producción,
+  # apunta SMTP_* a un proveedor real (p.ej. Resend) vía .env.
+  mailpit:
+    image: axllent/mailpit:latest
+
+  # Aplica migraciones; siembra datos demo solo si SEED_DEMO=true (nunca por
+  # defecto, para no poblar un despliegue real con datos de ejemplo).
   migrate:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
-    command: sh -c "pnpm --filter @nab/database migrate && pnpm --filter @nab/database seed"
+    command: >
+      sh -c "pnpm --filter @nab/database migrate &&
+      if [ \"$$SEED_DEMO\" = \"true\" ]; then pnpm --filter @nab/database seed; else echo 'SEED_DEMO no es true: se omite el seed.'; fi"
     environment:
-      DATABASE_URL: postgresql://nab:nab@postgres:5432/nab?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nab}:${POSTGRES_PASSWORD:-nab}@postgres:5432/${POSTGRES_DB:-nab}?schema=public
+      SEED_DEMO: ${SEED_DEMO:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,11 +65,28 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       API_PORT: 4000
-      DATABASE_URL: postgresql://nab:nab@postgres:5432/nab?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nab}:${POSTGRES_PASSWORD:-nab}@postgres:5432/${POSTGRES_DB:-nab}?schema=public
       REDIS_URL: redis://redis:6379
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_GENERATION: ${AI_MODEL_GENERATION:-claude-sonnet-5}
+      AI_MODEL_FAST: ${AI_MODEL_FAST:-claude-haiku-4-5}
+      AI_MOCK: ${AI_MOCK:-false}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+      # Host interno de la red de compose (no confundir con el S3_ENDPOINT de
+      # .env, pensado para `pnpm dev` en el host vía docker-compose.dev.yml).
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-nab-uploads}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minio}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minio12345}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
     ports:
       - '4000:4000'
     depends_on:
@@ -56,35 +96,71 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      minio:
+        condition: service_started
 
   workers:
     build:
       context: .
       dockerfile: docker/workers.Dockerfile
     environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://nab:nab@postgres:5432/nab?schema=public
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nab}:${POSTGRES_PASSWORD:-nab}@postgres:5432/${POSTGRES_DB:-nab}?schema=public
       REDIS_URL: redis://redis:6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_FAST: ${AI_MODEL_FAST:-claude-haiku-4-5}
+      AI_MOCK: ${AI_MOCK:-false}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      INGEST_MOCK: ${INGEST_MOCK:-false}
+      GREENHOUSE_BOARDS: ${GREENHOUSE_BOARDS}
+      LEVER_BOARDS: ${LEVER_BOARDS}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY}
+      JSEARCH_RAPIDAPI_KEY: ${JSEARCH_RAPIDAPI_KEY}
+      # Host interno de la red de compose (no confundir con el S3_ENDPOINT de
+      # .env, pensado para `pnpm dev` en el host vía docker-compose.dev.yml).
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-nab-uploads}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minio}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minio12345}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      # Ídem: host interno de mailpit, no el SMTP_HOST=localhost de .env.
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM:-Nab <no-reply@nab.app>}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
     depends_on:
       redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      minio:
+        condition: service_started
+      mailpit:
+        condition: service_started
 
   web:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       # URL interna (red de compose) para llamadas server-side
       API_URL: http://api:4000
       # URL pública para el navegador
-      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
     ports:
       - '3000:3000'
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   nab_pgdata:
+  nab_miniodata:

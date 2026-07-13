@@ -4,6 +4,7 @@ import { PLANS, PAID_PLANS, type PlanId } from '@nab/shared';
 import type { Plan } from '@nab/database';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CreditsService } from './credits.service.js';
+import { EmailProducer } from '../../queues/email.producer.js';
 
 const WEB_URL = process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000';
 
@@ -25,6 +26,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly credits: CreditsService,
+    private readonly email: EmailProducer,
   ) {
     const apiKey = process.env.STRIPE_SECRET_KEY;
     this.enabled = Boolean(apiKey);
@@ -134,6 +136,9 @@ export class BillingService {
       case 'invoice.paid':
         await this.onInvoicePaid(event.data.object as Stripe.Invoice);
         break;
+      case 'invoice.payment_failed':
+        await this.onInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
       case 'customer.subscription.updated':
         await this.onSubscriptionUpdated(event.data.object as Stripe.Subscription);
         break;
@@ -183,6 +188,36 @@ export class BillingService {
       where: { stripeSubscriptionId: subId },
       data: { status: 'ACTIVE' },
     });
+  }
+
+  /**
+   * El cobro de un ciclo falló (tarjeta rechazada, fondos insuficientes...).
+   * Stripe reintentará automáticamente según su configuración de dunning; acá
+   * solo marcamos la suscripción como PAST_DUE (sin tocar créditos: el usuario
+   * conserva lo que le quedaba) y avisamos por email para que actualice el
+   * método de pago antes de que Stripe cancele la suscripción.
+   */
+  private async onInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
+    const subscriptionId = invoice.parent?.subscription_details?.subscription;
+    if (!subscriptionId) return;
+    const subId = typeof subscriptionId === 'string' ? subscriptionId : subscriptionId.id;
+
+    const record = await this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId: subId },
+      select: { userId: true },
+    });
+    if (!record) return;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: record.userId },
+      select: { email: true },
+    });
+
+    await this.prisma.subscription.update({
+      where: { stripeSubscriptionId: subId },
+      data: { status: 'PAST_DUE' },
+    });
+    if (user) await this.email.enqueuePaymentFailed(user.email);
   }
 
   private async onSubscriptionUpdated(sub: Stripe.Subscription): Promise<void> {

@@ -7,7 +7,8 @@ import { QUEUE_NAMES } from '@nab/shared';
 export type EmailJob =
   | { type: 'verify-email'; to: string; token: string }
   | { type: 'password-reset'; to: string; token: string }
-  | { type: 'welcome'; to: string; name: string | null };
+  | { type: 'welcome'; to: string; name: string | null }
+  | { type: 'payment-failed'; to: string };
 
 @Injectable()
 export class EmailProducer {
@@ -23,5 +24,9 @@ export class EmailProducer {
 
   async enqueueWelcome(to: string, name: string | null): Promise<void> {
     await this.queue.add('welcome', { type: 'welcome', to, name });
+  }
+
+  async enqueuePaymentFailed(to: string): Promise<void> {
+    await this.queue.add('payment-failed', { type: 'payment-failed', to });
   }
 }

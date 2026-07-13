@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
-import type { CreditReason } from '@nab/database';
+import { Prisma, type CreditReason } from '@nab/database';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 /**
@@ -59,34 +59,35 @@ export class CreditsService {
    * Otorga créditos de forma transaccional (alta por suscripción/renovación):
    * registra el asiento positivo en el ledger e incrementa el caché.
    *
-   * Idempotente por `refId`: si ya existe un asiento con el mismo
-   * (userId, reason, refId) no vuelve a otorgar — necesario porque Stripe
-   * puede reintentar la entrega del mismo evento de webhook.
+   * Idempotente por `refId` a nivel de base de datos (constraint único
+   * `(userId, reason, refId)`, ver migración credit_ledger_unique_ref): un
+   * chequeo previo con `findFirst` no basta, porque dos transacciones
+   * concurrentes (p.ej. Stripe reintregando el mismo webhook en paralelo)
+   * pueden pasar ambas la lectura antes de que cualquiera confirme la
+   * escritura. Si la escritura choca con la restricción única, el crédito ya
+   * fue otorgado por otra llamada: se devuelve el saldo actual sin duplicar.
    */
   async grant(userId: string, amount: number, reason: CreditReason, refId?: string): Promise<number> {
-    return this.prisma.$transaction(async (tx) => {
-      if (refId) {
-        const existing = await tx.creditLedger.findFirst({
-          where: { userId, reason, refId },
-          select: { id: true },
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.creditLedger.create({ data: { userId, delta: amount, reason, refId: refId ?? null } });
+        const updated = await tx.user.update({
+          where: { id: userId },
+          data: { creditsRemaining: { increment: amount } },
+          select: { creditsRemaining: true },
         });
-        if (existing) {
-          const current = await tx.user.findUniqueOrThrow({
-            where: { id: userId },
-            select: { creditsRemaining: true },
-          });
-          return current.creditsRemaining;
-        }
-      }
-
-      await tx.creditLedger.create({ data: { userId, delta: amount, reason, refId: refId ?? null } });
-      const updated = await tx.user.update({
-        where: { id: userId },
-        data: { creditsRemaining: { increment: amount } },
-        select: { creditsRemaining: true },
+        return updated.creditsRemaining;
       });
-      return updated.creditsRemaining;
-    });
+    } catch (err) {
+      if (refId && err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const current = await this.prisma.user.findUniqueOrThrow({
+          where: { id: userId },
+          select: { creditsRemaining: true },
+        });
+        return current.creditsRemaining;
+      }
+      throw err;
+    }
   }
 
   /** Saldo real derivado del ledger (fuente de verdad), para reconciliar el caché. */

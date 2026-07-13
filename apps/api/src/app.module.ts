@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 
@@ -34,7 +35,12 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
         redact: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.passwordHash'],
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    // Storage en Redis (no en memoria): los límites de rate-limit son
+    // compartidos entre réplicas de la API en vez de reiniciarse por instancia.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 120 }],
+      storage: new ThrottlerStorageRedisService(process.env.REDIS_URL ?? 'redis://localhost:6379'),
+    }),
     PrismaModule,
     QueuesModule,
     StorageModule,

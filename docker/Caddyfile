@@ -1,0 +1,14 @@
+{
+	# Descomenta y ajusta un email real para avisos de Let's Encrypt.
+	# email tu-email@ejemplo.com
+}
+
+{$API_DOMAIN} {
+	reverse_proxy api:4000
+
+	encode zstd gzip
+	log {
+		output stdout
+		format json
+	}
+}

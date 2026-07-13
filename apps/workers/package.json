@@ -14,6 +14,7 @@
     "@aws-sdk/client-s3": "^3.670.0",
     "@nab/database": "workspace:*",
     "@nab/shared": "workspace:*",
+    "@sentry/node": "^10.65.0",
     "bullmq": "^5.20.0",
     "nodemailer": "^6.9.15",
     "pdf-parse": "^1.1.1",

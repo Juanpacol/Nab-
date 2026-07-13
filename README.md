@@ -98,3 +98,5 @@ El desarrollo siguió un plan por fases (ver `/Users/juanpablo/.claude/plans/`):
 7. ✅ App móvil (Expo) — Expo Router, feed swipe nativo, tracking, coach,
    push notifications (Expo Notifications) y sincronización en tiempo real
    (WebSocket) compartida con la web
+8. 🚧 Despliegue a beta pública (web en Vercel + api/workers/Postgres/Redis
+   en VPS) — ver [docs/DEPLOY.md](docs/DEPLOY.md) para el runbook completo.

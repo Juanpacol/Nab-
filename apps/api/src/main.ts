@@ -1,9 +1,15 @@
+import './instrument.js';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { validateEnv } from './config/env.validation.js';
+
+// Falla rápido con un mensaje claro si faltan secretos/config de producción,
+// en vez de arrancar con defaults de desarrollo o en modo mock silencioso.
+validateEnv(process.env);
 
 async function bootstrap() {
   // rawBody: true expone `req.rawBody` (necesario para verificar la firma de

@@ -33,6 +33,10 @@ COPY --from=build /app/apps/workers/package.json ./apps/workers/
 # también esta carpeta, "node apps/workers/dist/main.js" no las encuentra.
 COPY --from=build /app/apps/workers/node_modules ./apps/workers/node_modules
 USER nab
+EXPOSE 4100
+# 127.0.0.1 explícito: ver nota en docker/api.Dockerfile sobre IPv6/localhost.
+# El puerto es solo del health server interno (ver src/health-server.ts) —
+# los workers no sirven tráfico de negocio por HTTP.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
-  CMD pgrep -f "apps/workers/dist/main.js" > /dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1:${PORT:-4100}/ || exit 1
 CMD ["node", "apps/workers/dist/main.js"]

@@ -4,6 +4,7 @@ import { QUEUE_NAMES } from '@nab/shared';
 import { connection } from './redis.js';
 import { logger } from './logger.js';
 import { validateEnv } from './env.validation.js';
+import { startHealthServer } from './health-server.js';
 import { startEmailWorker } from './processors/email.processor.js';
 import { startCvParseWorker } from './processors/cv-parse.processor.js';
 import { startIngestWorker } from './processors/ingest.processor.js';
@@ -17,6 +18,8 @@ import { startEmbeddingsWorker } from './processors/embeddings.processor.js';
 // Falla rápido con un mensaje claro si faltan secretos/config de producción,
 // en vez de arrancar con defaults de desarrollo o en modo mock silencioso.
 validateEnv(process.env);
+
+const healthServer = startHealthServer();
 
 const jobIngestQueue = new Queue(QUEUE_NAMES.JOB_INGEST, { connection });
 
@@ -54,6 +57,7 @@ logger.info('⚙️  Workers de Nab iniciados: email, cv-parse, ingest, embeddin
 async function shutdown() {
   logger.info('Cerrando workers…');
   await Promise.all(workers.map((w) => w.close()));
+  healthServer.close();
   process.exit(0);
 }
 process.on('SIGTERM', shutdown);

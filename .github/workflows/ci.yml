@@ -78,6 +78,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # GHCR exige nombres de repositorio en minúsculas; github.repository_owner
+      # conserva las mayúsculas del usuario/org (p.ej. "Juanpacol").
+      - name: Normalizar owner a minúsculas
+        id: owner
+        run: echo "lower=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
       - name: Build y push ${{ matrix.service }}
         uses: docker/build-push-action@v6
         with:
@@ -85,8 +90,8 @@ jobs:
           file: docker/${{ matrix.service }}.Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/nab-${{ matrix.service }}:latest
-            ghcr.io/${{ github.repository_owner }}/nab-${{ matrix.service }}:sha-${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.lower }}/nab-${{ matrix.service }}:latest
+            ghcr.io/${{ steps.owner.outputs.lower }}/nab-${{ matrix.service }}:sha-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

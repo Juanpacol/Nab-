@@ -6,6 +6,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { DashboardNav } from '@/components/dashboard-nav';
 import { UserMenu } from '@/components/user-menu';
 import { SupportWidget } from '@/components/support-widget';
+import { RealtimeToaster } from '@/components/realtime-toaster';
 import { getCurrentUser } from '@/lib/session';
 
 /** Shell del panel: topbar con créditos reales + nav lateral/inferior. */
@@ -32,6 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <main className="min-h-[calc(100vh-4rem)] flex-1 px-4 pb-24 pt-6 md:pb-6">{children}</main>
       </div>
       <SupportWidget />
+      <RealtimeToaster />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Button } from '@nab/ui';
 
 type Theme = 'light' | 'dark';
 
@@ -24,12 +25,8 @@ export function ThemeToggle() {
   }
 
   return (
-    <button
-      onClick={toggle}
-      aria-label="Cambiar tema"
-      className="flex h-9 w-9 items-center justify-center rounded-sm border border-border text-foreground transition-colors hover:bg-surface-2"
-    >
+    <Button onClick={toggle} aria-label="Cambiar tema" variant="outline" size="icon" className="rounded-sm">
       {theme === 'dark' ? '☀️' : '🌙'}
-    </button>
+    </Button>
   );
 }

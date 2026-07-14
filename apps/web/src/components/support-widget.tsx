@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@nab/ui';
 import { ChatPanel } from '@/components/chat-panel';
 
 /**
@@ -16,9 +17,15 @@ export function SupportWidget() {
         <div className="fixed bottom-24 right-4 z-50 flex h-[70vh] max-h-[520px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-lg border border-border bg-bg shadow-lifted md:bottom-20">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <p className="font-display text-sm text-foreground">Soporte de Nab</p>
-            <button onClick={() => setOpen(false)} aria-label="Cerrar" className="text-muted hover:text-foreground">
+            <Button
+              onClick={() => setOpen(false)}
+              aria-label="Cerrar"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted hover:text-foreground"
+            >
               ✕
-            </button>
+            </Button>
           </div>
           <div className="flex-1 overflow-hidden">
             <ChatPanel
@@ -30,13 +37,15 @@ export function SupportWidget() {
           </div>
         </div>
       )}
-      <button
+      <Button
         onClick={() => setOpen((o) => !o)}
         aria-label="Abrir soporte"
-        className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-2xl text-primary-fg shadow-lifted transition-transform active:scale-90 md:bottom-6"
+        variant="primary"
+        size="icon"
+        className="fixed bottom-20 right-4 z-50 h-14 w-14 rounded-full text-2xl shadow-lifted md:bottom-6"
       >
         {open ? '✕' : '💬'}
-      </button>
+      </Button>
     </>
   );
 }

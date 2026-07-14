@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { Button } from '@nab/ui';
 import { logoutAction } from '@/app/actions/auth';
+import { disconnectRealtime } from '@/lib/socket';
 
 /** Avatar + menú desplegable con ajustes y cerrar sesión. */
 export function UserMenu({ name, email }: { name: string | null; email: string }) {
@@ -24,15 +26,17 @@ export function UserMenu({ name, email }: { name: string | null; email: string }
 
   return (
     <div className="relative">
-      <button
+      <Button
         onClick={() => setOpen((v) => !v)}
         aria-label="Cuenta"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft font-medium text-primary"
+        variant="ghost"
+        size="icon"
+        className="rounded-full bg-primary-soft font-medium text-primary hover:bg-primary-soft"
       >
         {initial}
-      </button>
+      </Button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
@@ -63,13 +67,15 @@ export function UserMenu({ name, email }: { name: string | null; email: string }
               Ajustes
             </Link>
             <form action={logoutAction}>
-              <button
+              <Button
                 type="submit"
                 role="menuitem"
-                className="w-full rounded-sm px-3 py-2 text-left text-sm text-danger hover:bg-surface-2"
+                variant="ghost"
+                onClick={() => disconnectRealtime()}
+                className="h-auto w-full justify-start rounded-sm px-3 py-2 text-left text-sm text-danger"
               >
                 Cerrar sesión
-              </button>
+              </Button>
             </form>
           </div>
         </>

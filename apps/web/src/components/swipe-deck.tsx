@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
-import { Card } from '@nab/ui';
+import { Button, Card } from '@nab/ui';
 import { formatSalary, type JobCard } from '@/lib/jobs';
 import { applyAction } from '@/app/actions/applications';
 import { saveJobAction } from '@/app/actions/jobs';
@@ -165,28 +165,34 @@ export function SwipeDeck({ jobs, loadError = false }: { jobs: JobCard[]; loadEr
 
       {remaining.length > 0 && (
         <div className="mt-6 flex items-center justify-center gap-5">
-          <button
+          <Button
             onClick={() => decide('left')}
             aria-label="Pasar"
-            className="flex h-14 w-14 items-center justify-center rounded-full border border-border text-xl text-danger transition-transform active:scale-90"
+            variant="outline"
+            size="icon"
+            className="h-14 w-14 rounded-full text-xl text-danger"
           >
             ✕
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => decide('up')}
             aria-label="Guardar"
-            className="flex h-12 w-12 items-center justify-center rounded-full border border-border text-lg text-primary transition-transform active:scale-90"
+            variant="outline"
+            size="icon"
+            className="h-12 w-12 rounded-full text-lg text-primary"
           >
             ★
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => decide('right')}
             aria-label="Aplicar"
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl text-primary-fg shadow-lifted transition-transform active:scale-90"
+            variant="primary"
+            size="icon"
+            className="h-16 w-16 rounded-full text-2xl shadow-lifted"
           >
             ✓
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
               setIndex((i) => Math.max(0, i - 1));
               setLastReversible(false);
@@ -194,10 +200,12 @@ export function SwipeDeck({ jobs, loadError = false }: { jobs: JobCard[]; loadEr
             aria-label="Deshacer"
             disabled={index === 0 || !lastReversible}
             title={!lastReversible && index > 0 ? 'Ya aplicaste a esta vacante, no se puede deshacer' : undefined}
-            className="flex h-12 w-12 items-center justify-center rounded-full border border-border text-lg text-muted transition-transform active:scale-90 disabled:opacity-40"
+            variant="outline"
+            size="icon"
+            className="h-12 w-12 rounded-full text-lg text-muted"
           >
             ↺
-          </button>
+          </Button>
         </div>
       )}
     </div>

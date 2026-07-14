@@ -17,6 +17,12 @@ const buttonVariants = cva(
         sm: 'h-9 px-3 text-sm',
         md: 'h-11 px-5 text-sm',
         lg: 'h-13 px-7 text-base',
+        // Cuadrado, sin padding horizontal — para botones de solo-ícono
+        // (FAB, toggles, controles circulares). El diámetro base es 9 (36px);
+        // los call sites que necesiten uno más grande lo pisan con
+        // className="h-12 w-12" (o h-14/h-16) — tailwind-merge en cn() hace
+        // que la clase pasada después gane sobre esta.
+        icon: 'h-9 w-9 p-0',
       },
     },
     defaultVariants: {

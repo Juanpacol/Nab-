@@ -101,3 +101,48 @@ export async function apiFetch<T>(
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+/**
+ * Sube el CV en PDF. No reusa `apiFetch`: ese helper fuerza siempre
+ * `Content-Type: application/json`, lo que rompería el boundary del
+ * multipart. React Native arma el `FormData` con el objeto `{ uri, name,
+ * type }` (no un `Blob` como en el navegador) y deja que `fetch` calcule el
+ * boundary solo si no le pasamos `Content-Type` a mano.
+ */
+export async function uploadResume(fileUri: string, fileName: string): Promise<{ status: string; key: string }> {
+  const form = new FormData();
+  form.append('file', { uri: fileUri, name: fileName, type: 'application/pdf' } as unknown as Blob);
+
+  const doUpload = async (bearer: string | null) =>
+    fetch(`${API_URL}/api/users/me/resume/upload`, {
+      method: 'POST',
+      headers: bearer ? { Authorization: `Bearer ${bearer}` } : undefined,
+      body: form,
+      signal: AbortSignal.timeout(45_000),
+    });
+
+  const token = await tokenStorage.getAccess();
+  let res: Response;
+  try {
+    res = await doUpload(token);
+  } catch {
+    throw { statusCode: 503, error: 'No se pudo conectar' } satisfies ApiError;
+  }
+
+  if (res.status === 401) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      try {
+        res = await doUpload(newToken);
+      } catch {
+        throw { statusCode: 503, error: 'No se pudo conectar' } satisfies ApiError;
+      }
+    }
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw { statusCode: res.status, error: body } satisfies ApiError;
+  }
+  return res.json() as Promise<{ status: string; key: string }>;
+}

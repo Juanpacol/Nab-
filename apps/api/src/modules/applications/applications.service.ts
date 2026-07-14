@@ -38,7 +38,7 @@ export class ApplicationsService {
   async apply(userId: string, input: CreateApplicationInput, opts?: { auto?: boolean }) {
     const job = await this.prisma.job.findUnique({
       where: { id: input.jobId },
-      select: { id: true, applyUrl: true },
+      select: { id: true, applyUrl: true, title: true, company: true },
     });
     if (!job) throw new NotFoundException('Vacante no encontrada');
 
@@ -106,6 +106,8 @@ export class ApplicationsService {
     this.realtime.emitToUser(userId, 'application.status_changed', {
       applicationId: application.id,
       status: 'APPLIED',
+      jobTitle: job.title,
+      company: job.company,
     });
     return { application, applyUrl: job.applyUrl, alreadyApplied: false };
   }
@@ -173,6 +175,8 @@ export class ApplicationsService {
     this.realtime.emitToUser(userId, 'application.status_changed', {
       applicationId: id,
       status: updated.status,
+      jobTitle: updated.job.title,
+      company: updated.job.company,
     });
 
     const pushText = STATUS_PUSH_TEXT[updated.status];

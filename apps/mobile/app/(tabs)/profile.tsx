@@ -2,15 +2,40 @@ import { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import { PLANS, type PlanId } from '@nab/shared';
 import { useAuth } from '@/lib/auth-context';
 import { registerForPushNotifications } from '@/lib/push';
+import { uploadResume } from '@/lib/api';
 import { useTheme } from '@/theme';
+
+const MAX_CV_SIZE = 8 * 1024 * 1024; // mismo límite que el backend (resume-upload.controller.ts)
 
 export default function ProfileScreen() {
   const theme = useTheme();
   const { user, logout } = useAuth();
   const [pushStatus, setPushStatus] = useState<'idle' | 'pending' | 'on' | 'off'>('idle');
+  const [cvStatus, setCvStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+
+  async function onUploadCv() {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+    if (result.canceled || !result.assets?.[0]) return;
+    const file = result.assets[0];
+
+    if (file.size != null && file.size > MAX_CV_SIZE) {
+      Alert.alert('Archivo muy grande', 'El CV debe pesar menos de 8MB.');
+      return;
+    }
+
+    setCvStatus('uploading');
+    try {
+      await uploadResume(file.uri, file.name);
+      setCvStatus('done');
+    } catch {
+      setCvStatus('error');
+      Alert.alert('No se pudo subir', 'Intenta de nuevo en un momento.');
+    }
+  }
 
   async function onEnablePush() {
     setPushStatus('pending');
@@ -71,6 +96,29 @@ export default function ProfileScreen() {
               : pushStatus === 'pending'
                 ? 'Activando…'
                 : 'Activar notificaciones push'}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onUploadCv}
+          disabled={cvStatus === 'uploading'}
+          style={{
+            height: 48,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: theme.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text style={{ color: theme.fg, fontWeight: '600' }}>
+            {cvStatus === 'uploading'
+              ? 'Subiendo…'
+              : cvStatus === 'done'
+                ? '✓ CV recibido — lo estamos procesando'
+                : cvStatus === 'error'
+                  ? 'Hubo un error, intenta de nuevo'
+                  : '📄 Subir CV (PDF)'}
           </Text>
         </Pressable>
 

@@ -13,21 +13,28 @@ export const metadata: Metadata = { title: 'Descubrir' };
 export default async function FeedPage() {
   const access = await getAccessToken();
   let jobs: JobCard[] = [];
+  let forYouFailed = false;
+  let searchFailed = false;
   try {
     const res = await apiFetch<{ data: JobCard[] }>('/jobs/for-you', {
       accessToken: access ?? undefined,
     });
     jobs = res.data;
   } catch {
-    jobs = [];
+    forYouFailed = true;
   }
   if (jobs.length === 0) {
     try {
       jobs = (await searchJobs({ limit: 20 })).data;
     } catch {
-      jobs = [];
+      searchFailed = true;
     }
   }
 
-  return <SwipeDeck jobs={jobs} />;
+  // "Sin vacantes" y "no pudimos conectar con el servidor" son estados muy
+  // distintos para el usuario — solo el segundo (ambas llamadas fallaron) es
+  // un error real que vale la pena distinguir del vacío legítimo.
+  const loadError = forYouFailed && searchFailed;
+
+  return <SwipeDeck jobs={jobs} loadError={loadError} />;
 }

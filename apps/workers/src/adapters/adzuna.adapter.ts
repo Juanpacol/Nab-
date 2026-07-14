@@ -30,7 +30,7 @@ export class AdzunaAdapter implements JobAdapter {
   async fetchJobs(): Promise<NormalizedJob[]> {
     try {
       const url = `https://api.adzuna.com/v1/api/jobs/${this.country}/search/1?app_id=${this.appId}&app_key=${this.appKey}&results_per_page=50&content-type=application/json`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
       if (!res.ok) {
         logger.warn({ status: res.status }, 'Adzuna: respuesta no OK');
         return [];

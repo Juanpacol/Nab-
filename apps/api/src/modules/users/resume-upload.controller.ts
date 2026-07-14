@@ -45,6 +45,11 @@ export class ResumeUploadController {
     if (file.mimetype !== 'application/pdf') {
       throw new BadRequestException('El CV debe ser un PDF');
     }
+    // El mimetype lo declara el cliente (spoofable) — confirmamos el contenido
+    // real revisando la cabecera del archivo ("%PDF-"), no solo el header HTTP.
+    if (file.buffer.subarray(0, 5).toString('latin1') !== '%PDF-') {
+      throw new BadRequestException('El archivo no es un PDF válido');
+    }
 
     const key = await this.storage.upload(
       `resumes/${user.userId}`,

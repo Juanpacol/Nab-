@@ -111,6 +111,19 @@ export const profileSchema = z.object({
 });
 export type ProfileInput = z.infer<typeof profileSchema>;
 
+/**
+ * Settings del agente de auto-aplicación — endpoint PARCIAL (PATCH), separado
+ * a propósito de `profileSchema` (que hace un reemplazo completo del perfil
+ * vía PUT). Reusar profileSchema para esto borraría skills/experiencia reales
+ * del usuario por los `.default([])` en los campos de arreglo.
+ */
+export const autoApplySettingsSchema = z.object({
+  autoApplyEnabled: z.boolean(),
+  autoApplyMinScore: z.number().int().min(0).max(100),
+  autoApplyMaxPerDay: z.number().int().min(1).max(10),
+});
+export type AutoApplySettingsInput = z.infer<typeof autoApplySettingsSchema>;
+
 // --- Búsqueda de vacantes ---
 export const jobSearchSchema = z.object({
   query: z.string().optional(),

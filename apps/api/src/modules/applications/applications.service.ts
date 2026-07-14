@@ -35,7 +35,7 @@ export class ApplicationsService {
    * No automatiza formularios de terceros: devuelve `applyUrl` para abrir el sitio.
    * Idempotente: si ya se aplicó, no vuelve a cobrar.
    */
-  async apply(userId: string, input: CreateApplicationInput) {
+  async apply(userId: string, input: CreateApplicationInput, opts?: { auto?: boolean }) {
     const job = await this.prisma.job.findUnique({
       where: { id: input.jobId },
       select: { id: true, applyUrl: true },
@@ -52,29 +52,57 @@ export class ApplicationsService {
 
     await this.credits.assertBalance(userId, CREDIT_COSTS.APPLICATION);
 
-    const application = await this.prisma.application.upsert({
-      where: { userId_jobId: { userId, jobId: input.jobId } },
-      create: {
-        userId,
-        jobId: input.jobId,
-        status: 'APPLIED',
-        method: 'EXTERNAL',
-        resumeId: input.resumeId ?? null,
-        coverLetterId: input.coverLetterId ?? null,
-        submittedAt: new Date(),
-        events: { create: { eventType: 'applied', payload: { method: 'assisted' } } },
-      },
-      update: {
-        status: 'APPLIED',
-        submittedAt: new Date(),
-        resumeId: input.resumeId ?? undefined,
-        coverLetterId: input.coverLetterId ?? undefined,
-        events: { create: { eventType: 'applied', payload: { method: 'assisted' } } },
-      },
-      select: { id: true },
+    // El CV/carta deben pertenecer al usuario que aplica — sin esto, un usuario
+    // podía pasar el resumeId/coverLetterId de otra persona y quedar asociado
+    // (y luego visible vía getById) a un recurso ajeno.
+    if (input.resumeId) {
+      const owned = await this.prisma.resume.findFirst({
+        where: { id: input.resumeId, userId },
+        select: { id: true },
+      });
+      if (!owned) throw new NotFoundException('CV no encontrado');
+    }
+    if (input.coverLetterId) {
+      const owned = await this.prisma.coverLetter.findFirst({
+        where: { id: input.coverLetterId, userId },
+        select: { id: true },
+      });
+      if (!owned) throw new NotFoundException('Carta de presentación no encontrada');
+    }
+
+    // Upsert + cobro en la MISMA transacción: si el cobro falla (saldo
+    // insuficiente perdido en una carrera, error de DB), la Application no
+    // queda marcada como enviada sin haberse cobrado (antes eran dos pasos
+    // separados y un reintento posterior nunca volvía a intentar el cobro,
+    // porque `apply()` es idempotente por `submittedAt` ya seteado).
+    const application = await this.prisma.$transaction(async (tx) => {
+      const app = await tx.application.upsert({
+        where: { userId_jobId: { userId, jobId: input.jobId } },
+        create: {
+          userId,
+          jobId: input.jobId,
+          status: 'APPLIED',
+          method: 'EXTERNAL',
+          resumeId: input.resumeId ?? null,
+          coverLetterId: input.coverLetterId ?? null,
+          submittedAt: new Date(),
+          autoApplied: opts?.auto ?? false,
+          events: { create: { eventType: 'applied', payload: { method: opts?.auto ? 'auto' : 'assisted' } } },
+        },
+        update: {
+          status: 'APPLIED',
+          submittedAt: new Date(),
+          resumeId: input.resumeId ?? undefined,
+          coverLetterId: input.coverLetterId ?? undefined,
+          autoApplied: opts?.auto ?? false,
+          events: { create: { eventType: 'applied', payload: { method: opts?.auto ? 'auto' : 'assisted' } } },
+        },
+        select: { id: true },
+      });
+      await this.credits.consumeWithClient(tx, userId, CREDIT_COSTS.APPLICATION, 'APPLICATION', app.id);
+      return app;
     });
 
-    await this.credits.consume(userId, CREDIT_COSTS.APPLICATION, 'APPLICATION', application.id);
     this.realtime.emitToUser(userId, 'application.status_changed', {
       applicationId: application.id,
       status: 'APPLIED',
@@ -93,6 +121,7 @@ export class ApplicationsService {
         matchScore: true,
         submittedAt: true,
         updatedAt: true,
+        autoApplied: true,
         job: { select: JOB_SUMMARY },
       },
     });

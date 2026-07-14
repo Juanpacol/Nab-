@@ -5,10 +5,12 @@ import {
   updateAccountSchema,
   changePasswordSchema,
   pushTokenSchema,
+  autoApplySettingsSchema,
   type ProfileInput,
   type UpdateAccountInput,
   type ChangePasswordInput,
   type PushTokenInput,
+  type AutoApplySettingsInput,
 } from '@nab/shared';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -60,6 +62,15 @@ export class UsersController {
   @ApiOperation({ summary: 'Saldo de créditos (desde el ledger)' })
   async credits(@CurrentUser() user: JwtUser) {
     return { credits: await this.users.getCreditBalance(user.userId) };
+  }
+
+  @Patch('auto-apply')
+  @ApiOperation({ summary: 'Configura el agente de auto-aplicación (opt-in)' })
+  updateAutoApply(
+    @CurrentUser() user: JwtUser,
+    @Body(new ZodValidationPipe(autoApplySettingsSchema)) body: AutoApplySettingsInput,
+  ) {
+    return this.users.updateAutoApplySettings(user.userId, body);
   }
 
   @Put('push-token')

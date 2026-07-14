@@ -21,7 +21,15 @@ validateEnv(process.env);
 
 const healthServer = startHealthServer();
 
-const jobIngestQueue = new Queue(QUEUE_NAMES.JOB_INGEST, { connection });
+const jobIngestQueue = new Queue(QUEUE_NAMES.JOB_INGEST, {
+  connection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5_000 },
+    removeOnComplete: { count: 500 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export const queues = {
   jobIngest: jobIngestQueue,

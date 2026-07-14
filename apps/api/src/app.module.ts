@@ -21,6 +21,7 @@ import { BillingModule } from './modules/billing/billing.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { AutoApplyModule } from './modules/auto-apply/auto-apply.module.js';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     AiModule,
     BillingModule,
     ChatModule,
+    AutoApplyModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

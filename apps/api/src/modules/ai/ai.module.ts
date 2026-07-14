@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { AiService } from './ai.service.js';
 import { AiController } from './ai.controller.js';
+import { GenerationService } from './generation.service.js';
 
 /**
  * Motor de IA (Fase 3): cliente Claude centralizado con fallback a modo mock
@@ -11,7 +12,7 @@ import { AiController } from './ai.controller.js';
 @Global()
 @Module({
   controllers: [AiController],
-  providers: [AiService],
-  exports: [AiService],
+  providers: [AiService, GenerationService],
+  exports: [AiService, GenerationService],
 })
 export class AiModule {}

@@ -26,6 +26,7 @@ export class GreenhouseAdapter implements JobAdapter {
       try {
         const res = await fetch(
           `https://boards-api.greenhouse.io/v1/boards/${board}/jobs?content=true`,
+          { signal: AbortSignal.timeout(10_000) },
         );
         if (!res.ok) {
           logger.warn({ board, status: res.status }, 'Greenhouse: respuesta no OK');

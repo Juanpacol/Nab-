@@ -19,6 +19,7 @@ export async function embedText(text: string): Promise<number[]> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ input: text.slice(0, 8000), model }),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
       logger.warn({ status: res.status }, 'Voyage: respuesta no OK; usando mock');

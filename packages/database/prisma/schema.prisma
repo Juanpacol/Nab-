@@ -166,6 +166,11 @@ model Profile {
   salaryMin        Int?
   salaryMax        Int?
   remotePreference RemotePreference @default(ANY)
+  // Agente de auto-aplicación (opt-in): aplica solo si score >= autoApplyMinScore/100,
+  // hasta autoApplyMaxPerDay aplicaciones por día. Ver AutoApplyService.
+  autoApplyEnabled   Boolean  @default(false)
+  autoApplyMinScore  Int      @default(85)
+  autoApplyMaxPerDay Int      @default(3)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -286,6 +291,7 @@ model Application {
   matchScore    Int? // % de match calculado por IA
   notes         String?
   submittedAt   DateTime?
+  autoApplied   Boolean           @default(false) // true si la aplicó el agente de auto-aplicación, no el usuario
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -297,6 +303,7 @@ model Application {
 
   @@unique([userId, jobId])
   @@index([userId, status])
+  @@index([userId, autoApplied, submittedAt])
 }
 
 model ApplicationEvent {

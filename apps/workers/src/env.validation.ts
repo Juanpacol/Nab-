@@ -12,6 +12,7 @@ const productionSchema = z.object({
   S3_SECRET_KEY: z.string().min(1, 'S3_SECRET_KEY es obligatorio en producción'),
   S3_BUCKET: z.string().min(1),
   SMTP_HOST: z.string().min(1, 'SMTP_HOST es obligatorio en producción'),
+  SMTP_PORT: z.string().min(1, 'SMTP_PORT es obligatorio en producción'),
   EMAIL_FROM: z.string().min(1, 'EMAIL_FROM es obligatorio en producción'),
   ANTHROPIC_API_KEY: z.string().optional(),
   VOYAGE_API_KEY: z.string().optional(),

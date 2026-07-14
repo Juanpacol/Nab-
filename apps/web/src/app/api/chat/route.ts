@@ -12,11 +12,20 @@ export async function POST(req: Request): Promise<Response> {
   if (!access) return new Response('Unauthorized', { status: 401 });
 
   const body = await req.text();
-  const upstream = await fetch(`${API_URL}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access}` },
-    body,
-  });
+  let upstream: Response;
+  try {
+    // 60s: cubre el cold start de la API en la Ruta A (Render free tier, ~1
+    // min dormido) sin cortar respuestas de chat normales, que son mucho más
+    // cortas. Sin esto, un servidor dormido deja el fetch colgado sin límite.
+    upstream = await fetch(`${API_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access}` },
+      body,
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch {
+    return new Response('Chat error', { status: 503 });
+  }
 
   if (!upstream.ok || !upstream.body) {
     return new Response('Chat error', { status: upstream.status || 502 });

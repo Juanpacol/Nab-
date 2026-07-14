@@ -94,16 +94,23 @@ function SwipeCard({
  * Deck de vacantes con física de swipe (Fase 4). Derecha aplica (asistido:
  * descuenta crédito + abre el sitio), arriba guarda, izquierda descarta; con undo.
  */
-export function SwipeDeck({ jobs }: { jobs: JobCard[] }) {
+export function SwipeDeck({ jobs, loadError = false }: { jobs: JobCard[]; loadError?: boolean }) {
   const [index, setIndex] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [, startAction] = useTransition();
+  // "Deshacer" solo retrocede el índice visual — para 'right' ya se disparó
+  // applyAction (cobra crédito y marca la aplicación como enviada) contra el
+  // backend, así que deshacerlo ahí sería engañoso: el usuario creería que
+  // canceló algo que en realidad ya se envió. Solo permitimos deshacer un
+  // swipe reversible (pasar/guardar), nunca uno que ya aplicó.
+  const [lastReversible, setLastReversible] = useState(false);
   const remaining = jobs.slice(index);
 
   function decide(dir: Decision) {
     const job = jobs[index];
     if (!job) return;
     setIndex((i) => i + 1);
+    setLastReversible(dir !== 'right');
 
     if (dir === 'right') {
       startAction(async () => {
@@ -130,7 +137,15 @@ export function SwipeDeck({ jobs }: { jobs: JobCard[] }) {
       </div>
 
       <div className="relative mx-auto mt-8 h-[420px] w-full">
-        {remaining.length === 0 ? (
+        {remaining.length === 0 && loadError ? (
+          <Card className="flex h-full flex-col items-center justify-center p-8 text-center">
+            <p className="text-4xl">⚠️</p>
+            <p className="mt-3 font-display text-xl text-foreground">No pudimos conectar</p>
+            <p className="mt-1 text-sm text-muted">
+              El servidor puede estar despertando. Recarga la página en un momento.
+            </p>
+          </Card>
+        ) : remaining.length === 0 ? (
           <Card className="flex h-full flex-col items-center justify-center p-8 text-center">
             <p className="text-4xl">🎉</p>
             <p className="mt-3 font-display text-xl text-foreground">¡Por hoy es todo!</p>
@@ -172,9 +187,13 @@ export function SwipeDeck({ jobs }: { jobs: JobCard[] }) {
             ✓
           </button>
           <button
-            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+            onClick={() => {
+              setIndex((i) => Math.max(0, i - 1));
+              setLastReversible(false);
+            }}
             aria-label="Deshacer"
-            disabled={index === 0}
+            disabled={index === 0 || !lastReversible}
+            title={!lastReversible && index > 0 ? 'Ya aplicaste a esta vacante, no se puede deshacer' : undefined}
             className="flex h-12 w-12 items-center justify-center rounded-full border border-border text-lg text-muted transition-transform active:scale-90 disabled:opacity-40"
           >
             ↺

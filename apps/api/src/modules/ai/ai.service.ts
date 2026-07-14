@@ -48,7 +48,10 @@ export class AiService {
   constructor() {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     this.enabled = Boolean(apiKey);
-    this.client = apiKey ? new Anthropic({ apiKey }) : null;
+    // Sin timeout explícito, el SDK usa su default (~10 min) y las llamadas
+    // corren síncronamente dentro del request HTTP del usuario — un cuelgue
+    // de Anthropic colgaría el request entero.
+    this.client = apiKey ? new Anthropic({ apiKey, timeout: 60_000, maxRetries: 2 }) : null;
     if (!this.enabled) {
       this.logger.warn('ANTHROPIC_API_KEY no configurada — IA en modo mock.');
     }

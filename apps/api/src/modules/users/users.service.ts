@@ -1,7 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import type { Prisma } from '@nab/database';
-import type { ProfileInput, UpdateAccountInput } from '@nab/shared';
+import type { AutoApplySettingsInput, ProfileInput, UpdateAccountInput } from '@nab/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { TokenService } from '../auth/token.service.js';
 
@@ -63,6 +63,25 @@ export class UsersService {
   /** Registra (o limpia) el token de Expo Notifications del dispositivo móvil. */
   async setPushToken(userId: string, token: string): Promise<void> {
     await this.prisma.user.update({ where: { id: userId }, data: { expoPushToken: token } });
+  }
+
+  /**
+   * Settings del agente de auto-aplicación — PATCH parcial (`profile.update`,
+   * no `upsert`). A propósito NO reusa `upsertProfile`/`PUT /users/me/profile`:
+   * ese endpoint hace un reemplazo completo del perfil (profileSchema tiene
+   * `.default([])` en skills/locations/etc.), así que reusarlo aquí borraría
+   * datos reales del usuario que no vinieran en este body más chico.
+   */
+  async updateAutoApplySettings(userId: string, input: AutoApplySettingsInput) {
+    const existing = await this.prisma.profile.findUnique({ where: { userId }, select: { id: true } });
+    if (!existing) {
+      throw new BadRequestException('Completa tu perfil antes de activar la auto-aplicación');
+    }
+    return this.prisma.profile.update({
+      where: { userId },
+      data: input,
+      select: { autoApplyEnabled: true, autoApplyMinScore: true, autoApplyMaxPerDay: true },
+    });
   }
 
   /** Saldo de créditos calculado desde el ledger (fuente de verdad). */

@@ -45,7 +45,10 @@ export class StorageService implements OnModuleInit {
 
   /** Sube un buffer y devuelve la key del objeto. */
   async upload(prefix: string, filename: string, body: Buffer, contentType: string): Promise<string> {
-    const key = `${prefix}/${randomUUID()}-${filename}`;
+    // El nombre original del archivo llega tal cual del cliente y puede traer
+    // "/", caracteres de control, etc. — se sanea antes de componer la key de S3.
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'archivo';
+    const key = `${prefix}/${randomUUID()}-${safeName}`;
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,

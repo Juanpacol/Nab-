@@ -28,6 +28,15 @@ echo "==> Volcando Postgres (${POSTGRES_DB}) a ${LOCAL_PATH}"
 docker compose -f docker-compose.prod.yml exec -T postgres \
   pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" >"$LOCAL_PATH"
 
+# Un dump vacío (por un fallo silencioso de pg_dump/el contenedor) no debe
+# subirse como si fuera un backup válido — daría una falsa sensación de
+# seguridad hasta el día que haga falta restaurar.
+if [ ! -s "$LOCAL_PATH" ]; then
+  echo "✖ El dump quedó vacío (${LOCAL_PATH}); no se sube. Revisa el contenedor de postgres." >&2
+  rm -f "$LOCAL_PATH"
+  exit 1
+fi
+
 echo "==> Subiendo a s3://${BACKUP_S3_BUCKET}/postgres/${FILE}"
 AWS_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_KEY" \
   aws s3 cp "$LOCAL_PATH" "s3://${BACKUP_S3_BUCKET}/postgres/${FILE}" --endpoint-url "$BACKUP_S3_ENDPOINT"

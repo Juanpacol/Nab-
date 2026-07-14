@@ -14,15 +14,31 @@ export async function apiFetch<T>(
   options: RequestInit & { accessToken?: string } = {},
 ): Promise<T> {
   const { accessToken, headers, ...rest } = options;
-  const res = await fetch(`${API_URL}/api${path}`, {
-    ...rest,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...headers,
-    },
-    cache: 'no-store',
-  });
+  // 45s: en la Ruta A (Render free tier) la API puede estar dormida y tardar
+  // hasta ~1 min en despertar. Sin timeout, un proveedor caído o un cold
+  // start colgado deja el request esperando indefinidamente.
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api${path}`, {
+      ...rest,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...headers,
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(45_000),
+    });
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === 'TimeoutError';
+    const apiErr: ApiError = {
+      statusCode: 503,
+      error: timedOut
+        ? 'El servidor tardó demasiado en responder (puede estar despertando)'
+        : 'No se pudo conectar con el servidor',
+    };
+    throw apiErr;
+  }
 
   if (!res.ok) {
     let body: unknown;

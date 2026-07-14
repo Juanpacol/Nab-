@@ -149,6 +149,7 @@ export function ChatPanel({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={compact ? 'Escribe tu duda…' : 'Escribe un mensaje…'}
+          aria-label="Mensaje"
           className="h-10 flex-1 rounded-sm border border-border bg-bg px-3 text-sm text-foreground outline-none focus:border-primary"
         />
         <Button type="submit" size="sm" disabled={streaming || !input.trim()}>

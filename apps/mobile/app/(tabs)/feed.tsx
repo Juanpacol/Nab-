@@ -12,14 +12,19 @@ export default function FeedScreen() {
   const [jobs, setJobs] = useState<JobCard[] | null>(null);
   const [index, setIndex] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  // Distingue "no hay vacantes" (lista vacía real) de "no pudimos conectar"
+  // (timeout de cold start, red caída) — antes ambos casos se veían igual.
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     setIndex(0);
+    setLoadError(false);
     try {
       const forYou = await fetchForYou();
       setJobs(forYou.length > 0 ? forYou : await fetchRecentJobs());
     } catch {
       setJobs([]);
+      setLoadError(true);
     }
   }, []);
 
@@ -82,9 +87,15 @@ export default function FeedScreen() {
               gap: 8,
             }}
           >
-            <Text style={{ fontSize: 40 }}>🎉</Text>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: theme.fg }}>¡Por hoy es todo!</Text>
-            <Text style={{ fontSize: 13, color: theme.fgMuted }}>Vuelve pronto por más vacantes.</Text>
+            <Text style={{ fontSize: 40 }}>{loadError ? '⚠️' : '🎉'}</Text>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: theme.fg }}>
+              {loadError ? 'No pudimos conectar' : '¡Por hoy es todo!'}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.fgMuted }}>
+              {loadError
+                ? 'El servidor puede estar despertando. Intenta de nuevo.'
+                : 'Vuelve pronto por más vacantes.'}
+            </Text>
             <Pressable onPress={load} style={{ marginTop: 12 }}>
               <Text style={{ color: theme.primary, fontWeight: '600' }}>Recargar</Text>
             </Pressable>

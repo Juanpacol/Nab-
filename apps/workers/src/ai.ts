@@ -3,7 +3,7 @@ import { parsedResumeSchema, type ParsedResume } from '@nab/shared';
 import { logger } from './logger.js';
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
-const client = apiKey ? new Anthropic({ apiKey }) : null;
+const client = apiKey ? new Anthropic({ apiKey, timeout: 60_000, maxRetries: 2 }) : null;
 const fastModel = process.env.AI_MODEL_FAST ?? 'claude-haiku-4-5';
 
 const EXTRACTION_PROMPT = `Extrae la información profesional del siguiente CV en español y devuélvela EXCLUSIVAMENTE como JSON válido con esta forma:

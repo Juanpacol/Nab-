@@ -25,7 +25,9 @@ export class LeverAdapter implements JobAdapter {
     const all: NormalizedJob[] = [];
     for (const company of this.companies) {
       try {
-        const res = await fetch(`https://api.lever.co/v0/postings/${company}?mode=json`);
+        const res = await fetch(`https://api.lever.co/v0/postings/${company}?mode=json`, {
+          signal: AbortSignal.timeout(10_000),
+        });
         if (!res.ok) {
           logger.warn({ company, status: res.status }, 'Lever: respuesta no OK');
           continue;

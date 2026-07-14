@@ -33,26 +33,45 @@ export class CreditsService {
     reason: CreditReason,
     refId?: string,
   ): Promise<number> {
-    return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-        select: { creditsRemaining: true },
-      });
-      if (!user) throw new NotFoundException('Usuario no encontrado');
-      if (user.creditsRemaining < amount) {
-        throw new HttpException('Créditos insuficientes', HttpStatus.PAYMENT_REQUIRED);
-      }
+    return this.prisma.$transaction((tx) => this.consumeWithClient(tx, userId, amount, reason, refId));
+  }
 
-      await tx.creditLedger.create({
-        data: { userId, delta: -amount, reason, refId: refId ?? null },
-      });
-      const updated = await tx.user.update({
-        where: { id: userId },
-        data: { creditsRemaining: { decrement: amount } },
-        select: { creditsRemaining: true },
-      });
-      return updated.creditsRemaining;
+  /**
+   * Igual que `consume`, pero opera dentro de una transacción ya abierta por el
+   * llamador (p.ej. `ApplicationsService.apply`, que necesita que el cambio de
+   * estado de la Application y el cobro de crédito confirmen o reviertan juntos).
+   *
+   * El chequeo de saldo va DENTRO del `UPDATE` (`creditsRemaining: { gte: amount }`)
+   * en vez de leer-y-luego-escribir: así Postgres serializa filas concurrentes que
+   * compiten por el mismo saldo (dos requests gastando crédito a la vez no pueden
+   * ambas pasar la validación con el mismo saldo leído, como sí podía pasar antes
+   * con un SELECT seguido de un UPDATE separados).
+   */
+  async consumeWithClient(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    amount: number,
+    reason: CreditReason,
+    refId?: string,
+  ): Promise<number> {
+    const result = await tx.user.updateMany({
+      where: { id: userId, creditsRemaining: { gte: amount } },
+      data: { creditsRemaining: { decrement: amount } },
     });
+    if (result.count === 0) {
+      const exists = await tx.user.findUnique({ where: { id: userId }, select: { id: true } });
+      if (!exists) throw new NotFoundException('Usuario no encontrado');
+      throw new HttpException('Créditos insuficientes', HttpStatus.PAYMENT_REQUIRED);
+    }
+
+    await tx.creditLedger.create({
+      data: { userId, delta: -amount, reason, refId: refId ?? null },
+    });
+    const updated = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { creditsRemaining: true },
+    });
+    return updated.creditsRemaining;
   }
 
   /**

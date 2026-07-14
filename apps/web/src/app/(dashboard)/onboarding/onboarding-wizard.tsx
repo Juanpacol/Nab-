@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Button, Card } from '@nab/ui';
@@ -34,9 +34,12 @@ export function OnboardingWizard({
   const router = useRouter();
   const [state, action] = useActionState<ProfileState, FormData>(saveProfileAction, {});
 
-  if (state.ok) {
-    router.push('/dashboard');
-  }
+  // Navegar es un side-effect: hacerlo en el cuerpo del render (en vez de en
+  // un efecto) corre en cada render mientras `state.ok` sea true, lo cual
+  // React puede advertir o manejar de forma inconsistente (doble navegación).
+  useEffect(() => {
+    if (state.ok) router.push('/dashboard');
+  }, [state.ok, router]);
 
   async function handleCv(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

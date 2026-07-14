@@ -19,6 +19,16 @@ const redisUrl = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
         port: Number(redisUrl.port || 6379),
         password: redisUrl.password || undefined,
       },
+      // Sin esto, un job que falla por un error transitorio (timeout de red,
+      // deadlock de DB) se pierde para siempre — BullMQ no reintenta por
+      // defecto. removeOnComplete/removeOnFail acotan el crecimiento de Redis
+      // (relevante en el free tier de Upstash, con cuota de memoria/comandos).
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+        removeOnComplete: { count: 500 },
+        removeOnFail: { count: 500 },
+      },
     }),
     BullModule.registerQueue(
       { name: QUEUE_NAMES.EMAIL },

@@ -34,4 +34,8 @@ export const QUEUE_NAMES = {
   EMBEDDINGS: 'embeddings',
   AI_GENERATION: 'ai-generation',
   EMAIL: 'email',
+  // A diferencia de las demás, esta la consume apps/api (no apps/workers) —
+  // ver AutoApplyModule. Necesita inyectar AiService/ApplicationsService/
+  // CreditsService directamente, y apps/workers no es una app NestJS.
+  AUTO_APPLY: 'auto-apply',
 } as const;

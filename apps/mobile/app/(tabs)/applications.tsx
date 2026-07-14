@@ -4,18 +4,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { APPLICATION_STATUS_LABELS, KANBAN_COLUMNS } from '@nab/shared';
 import { useTheme } from '@/theme';
 import { listApplications, updateApplicationStatus, type ApplicationCard } from '@/lib/applications';
-import { useRealtime } from '@/lib/socket';
+import { useRealtime, useRealtimeStatus } from '@/lib/socket';
 
 /** Seguimiento de aplicaciones (Fase 7): lista mobile-first del kanban web. */
 export default function ApplicationsScreen() {
   const theme = useTheme();
   const [apps, setApps] = useState<ApplicationCard[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const connected = useRealtimeStatus();
 
   const load = useCallback(async () => {
     try {
       setApps(await listApplications());
+      setLoadError(false);
     } catch {
       setApps([]);
+      setLoadError(true);
     }
   }, []);
 
@@ -59,7 +63,20 @@ export default function ApplicationsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: theme.fg }}>Aplicaciones</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: theme.fg }}>Aplicaciones</Text>
+          {!connected && (
+            <View
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: theme.fgMuted,
+              }}
+              accessibilityLabel="Tiempo real desconectado, reconectando…"
+            />
+          )}
+        </View>
         <Text style={{ fontSize: 14, color: theme.fgMuted, marginTop: 2 }}>
           Toca una tarjeta para cambiar su estado.
         </Text>
@@ -70,9 +87,20 @@ export default function ApplicationsScreen() {
         keyExtractor={(a) => a.id}
         contentContainerStyle={{ paddingHorizontal: 20, gap: 10, paddingBottom: 20 }}
         ListEmptyComponent={
-          <Text style={{ textAlign: 'center', color: theme.fgMuted, marginTop: 40 }}>
-            Aún no tienes aplicaciones. Ve al feed y desliza a la derecha.
-          </Text>
+          loadError ? (
+            <View style={{ alignItems: 'center', marginTop: 40, gap: 8 }}>
+              <Text style={{ textAlign: 'center', color: theme.fgMuted }}>
+                No pudimos conectar. El servidor puede estar despertando.
+              </Text>
+              <Pressable onPress={load}>
+                <Text style={{ color: theme.primary, fontWeight: '600' }}>Reintentar</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={{ textAlign: 'center', color: theme.fgMuted, marginTop: 40 }}>
+              Aún no tienes aplicaciones. Ve al feed y desliza a la derecha.
+            </Text>
+          )
         }
         renderItem={({ item }) => (
           <Pressable

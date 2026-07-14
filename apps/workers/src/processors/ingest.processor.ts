@@ -6,7 +6,18 @@ import { connection } from '../redis.js';
 import { logger } from '../logger.js';
 import { buildAdapters } from '../adapters/index.js';
 
-const embeddingsQueue = new Queue(QUEUE_NAMES.EMBEDDINGS, { connection });
+const embeddingsQueue = new Queue(QUEUE_NAMES.EMBEDDINGS, {
+  connection,
+  // Ver nota en apps/api/src/queues/queues.module.ts: reintentos + límite de
+  // retención para no perder jobs por fallos transitorios ni agotar la cuota
+  // de memoria de Redis en el free tier.
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5_000 },
+    removeOnComplete: { count: 500 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 /**
  * Ingesta de vacantes (Fase 2). Ejecuta los adapters configurados, normaliza y

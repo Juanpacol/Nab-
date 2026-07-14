@@ -37,6 +37,7 @@ export class JSearchAdapter implements JobAdapter {
           'X-RapidAPI-Key': this.apiKey,
           'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
         },
+        signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) {
         logger.warn({ status: res.status }, 'JSearch: respuesta no OK');

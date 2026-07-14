@@ -22,6 +22,9 @@ export async function streamChat(
   onEvent: (evt: ChatEvent) => void,
 ): Promise<void> {
   const token = await tokenStorage.getAccess();
+  // 60s: cubre el cold start de la API en Render free tier sin cortar
+  // respuestas de chat normales (más cortas). El caller ya envuelve esta
+  // función en try/catch, así que dejamos que el abort se propague como error.
   const res = await expoFetch(`${API_URL}/api/chat`, {
     method: 'POST',
     headers: {
@@ -29,6 +32,7 @@ export async function streamChat(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ contextType, content, sessionId }),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!res.ok || !res.body) throw new Error('No se pudo conectar con el chat');

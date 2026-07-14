@@ -21,6 +21,7 @@ async function refreshAccessToken(): Promise<string | null> {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
+          signal: AbortSignal.timeout(45_000),
         });
         if (!res.ok) {
           await tokenStorage.clear();
@@ -50,6 +51,8 @@ export async function apiFetch<T>(
   const { accessToken, skipAuthRetry, headers, ...rest } = options;
   const token = accessToken ?? (await tokenStorage.getAccess());
 
+  // 45s: la API puede estar dormida (Render free tier, hasta ~1 min para
+  // despertar) — sin timeout el spinner se queda colgado indefinidamente.
   const doFetch = async (bearer: string | null) =>
     fetch(`${API_URL}/api${path}`, {
       ...rest,
@@ -58,13 +61,30 @@ export async function apiFetch<T>(
         ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
         ...headers,
       },
+      signal: AbortSignal.timeout(45_000),
     });
 
-  let res = await doFetch(token);
+  let res: Response;
+  try {
+    res = await doFetch(token);
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === 'TimeoutError';
+    const apiErr: ApiError = {
+      statusCode: 503,
+      error: timedOut ? 'El servidor tardó demasiado en responder' : 'No se pudo conectar',
+    };
+    throw apiErr;
+  }
 
   if (res.status === 401 && !skipAuthRetry) {
     const newToken = await refreshAccessToken();
-    if (newToken) res = await doFetch(newToken);
+    if (newToken) {
+      try {
+        res = await doFetch(newToken);
+      } catch {
+        throw { statusCode: 503, error: 'No se pudo conectar' } satisfies ApiError;
+      }
+    }
   }
 
   if (!res.ok) {

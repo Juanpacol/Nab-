@@ -29,6 +29,26 @@ function createFakePrisma(userId: string, initialCredits: number) {
         if (data.creditsRemaining.increment != null) creditsRemaining += data.creditsRemaining.increment;
         return { creditsRemaining };
       }),
+      // Imita el UPDATE condicional atómico de Postgres: solo descuenta (y
+      // reporta count: 1) si la fila todavía cumple el WHERE en el momento de
+      // escribir, igual que `consumeWithClient` espera de Prisma/Postgres.
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; creditsRemaining?: { gte: number } };
+          data: { creditsRemaining: { decrement?: number; increment?: number } };
+        }) => {
+          if (where.id !== userId) return { count: 0 };
+          if (where.creditsRemaining?.gte != null && creditsRemaining < where.creditsRemaining.gte) {
+            return { count: 0 };
+          }
+          if (data.creditsRemaining.decrement != null) creditsRemaining -= data.creditsRemaining.decrement;
+          if (data.creditsRemaining.increment != null) creditsRemaining += data.creditsRemaining.increment;
+          return { count: 1 };
+        },
+      ),
     },
     creditLedger: {
       create: vi.fn(async ({ data }: { data: { userId: string; delta: number; reason: string; refId: string | null } }) => {

@@ -9,7 +9,10 @@ export const metadata: Metadata = {
   },
   description:
     'Nab automatiza tu búsqueda de empleo: encuentra vacantes, genera CVs y cartas personalizados con IA, y aplica con un toque.',
-  metadataBase: new URL('https://nab.app'),
+  // Mismo NEXT_PUBLIC_APP_URL que usan robots.ts/sitemap.ts — antes estaba
+  // hardcodeado a nab.app, así que el Open Graph quedaba inconsistente con el
+  // dominio real en cualquier despliegue que no fuera ese.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://nab.app'),
   openGraph: {
     title: 'Nab',
     description: 'Tu búsqueda de empleo, automatizada con IA.',

@@ -2,20 +2,20 @@
 
 Hay dos rutas de despliegue documentadas aquí:
 
-- **Ruta A — 100% gratis, sin tarjeta de crédito** (recomendada para arrancar la beta sin presupuesto): web en Vercel, Postgres en Neon, Redis en Upstash, API y workers en Render (free tier).
+- **Ruta A — 100% gratis, sin tarjeta de crédito** (recomendada para arrancar la beta sin presupuesto): web en Vercel, Postgres + Storage en Supabase, Redis en Upstash, API y workers en Render (free tier).
 - **Ruta B — VPS de pago** (~€6/mes, cuando haya presupuesto): web en Vercel, todo el backend (Postgres + Redis + API + workers) en un VPS propio con Docker Compose y Caddy. Más control, sin los límites de los free tiers, pero no es gratis.
 
 Ambas comparten el mismo código y Dockerfiles — la diferencia es solo dónde corren.
 
 ---
 
-## Ruta A — 100% gratis (Vercel + Neon + Upstash + Render)
+## Ruta A — 100% gratis (Vercel + Supabase + Upstash + Render)
 
 ### A0. Cuentas necesarias (todas gratis, sin tarjeta)
 
 | Servicio | Para qué | Límite gratis relevante |
 |---|---|---|
-| [Neon](https://neon.tech) | Postgres + pgvector | 0.5 GB/proyecto, se autosuspende a los 5 min de inactividad (despierta solo en ~1s, sin perder datos) |
+| [Supabase](https://supabase.com) | Postgres + pgvector **y** Storage (CVs subidos) en una sola cuenta | DB: 500 MB, se pausa a los 7 días de inactividad total del proyecto (no por minutos, como Neon). Storage: 1 GB |
 | [Upstash](https://upstash.com) | Redis (BullMQ + rate limiting) | 256 MB, ~500K comandos/mes |
 | [Render](https://render.com) | API y workers (Docker) | Free web service, se duerme a los 15 min sin tráfico HTTP entrante |
 | [Vercel](https://vercel.com) | Web (Next.js) | Gratis, sin límites relevantes para una beta |
@@ -28,10 +28,19 @@ No hace falta dominio propio para empezar: Render y Vercel dan subdominios grati
 
 **Limitación a aceptar conscientemente**: Render free duerme cada servicio tras 15 min sin tráfico HTTP. Los workers (que no reciben tráfico HTTP por naturaleza) incluyen un servidor HTTP mínimo solo para esto (`apps/workers/src/health-server.ts`, puerto `4100`). Con un ping externo cada ~10 min a `/health` (api) y `/` (workers), ambos se mantienen despiertos casi siempre — pero un pico de tráfico tras un período sin pings puede sufrir un cold start de hasta ~1 min, y notificaciones en tiempo real (WebSocket) se cortan si el servicio llega a dormirse. Aceptable para una beta con tráfico intermitente; no para producción con SLA.
 
-### A1. Setup de Neon (Postgres)
+### A1. Setup de Supabase (Postgres + Storage)
 
-1. Crea un proyecto en Neon → copia el **connection string** (con `?sslmode=require`) → ese es tu `DATABASE_URL`.
-2. No hace falta crear la extensión `vector` a mano: la migración inicial de Prisma la crea sola (`CREATE EXTENSION IF NOT EXISTS "vector"`), y Neon la permite por defecto.
+Supabase reemplaza dos servicios a la vez: la base de datos Postgres y el almacenamiento de archivos (CVs subidos), con un solo dashboard y una sola cuenta.
+
+**Postgres:**
+1. Crea un proyecto en Supabase → Settings → Database → copia el **Connection string** modo "Transaction pooler" (puerto `6543`, mejor para conexiones serverless/cortas como las de Render free) → ese es tu `DATABASE_URL`. Añade `?sslmode=require` si no viene incluido.
+2. No hace falta crear la extensión `vector` a mano: la migración inicial de Prisma la crea sola (`CREATE EXTENSION IF NOT EXISTS "vector"`), y Supabase la permite por defecto.
+
+**Storage (S3-compatible, reemplaza a Cloudflare R2):**
+1. En el proyecto de Supabase → Storage → crea un bucket (ej. `nab-uploads`, privado).
+2. Settings → Storage → **S3 Connection** → copia el **Endpoint** (`https://<project-ref>.supabase.co/storage/v1/s3`) y la **Region** (normalmente `us-east-1` o la que muestre el panel).
+3. Genera credenciales S3 en la misma pantalla ("New access key") → esas son tu `S3_ACCESS_KEY` y `S3_SECRET_KEY`. **No** uses la `anon key` ni la `service_role key` del proyecto para esto — son cosas distintas.
+4. `S3_BUCKET` = el nombre del bucket que creaste. `S3_FORCE_PATH_STYLE=true` (el código en `apps/api/src/storage/storage.service.ts` ya lo usa por defecto).
 
 ### A2. Setup de Upstash (Redis)
 
@@ -43,16 +52,18 @@ No hace falta dominio propio para empezar: Render y Vercel dan subdominios grati
 
 Usa `.env.example` como referencia. Con `AI_MOCK=true` e `INGEST_MOCK=true` (los defaults en `render.yaml`) no necesitas `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` ni boards de ingesta para arrancar — actívalos cuando tengas presupuesto para IA real, cambiando esas dos variables a `false` (o quitándolas) y añadiendo las claves.
 
-Para storage (CVs subidos) necesitas igualmente un S3 compatible — Cloudflare R2 tiene free tier generoso sin tarjeta (10 GB gratis) y es la opción recomendada aquí también.
+Los `S3_*` (storage) salen del paso A1 (Supabase Storage), no de un servicio aparte.
 
 ### A4. Deploy de API y workers en Render
 
 El repo incluye `render.yaml` (Blueprint) con ambos servicios ya definidos, apuntando a `docker/api.Dockerfile` y `docker/workers.Dockerfile`, plan `free`.
 
 1. En Render → **New → Blueprint** → conecta el repo `Juanpacol/Nab-`. Render detecta `render.yaml` y propone crear `nab-api` y `nab-workers`.
-2. Completa las variables marcadas `sync: false` (secretos) en el dashboard de cada servicio: `JWT_SECRET` (genera con `openssl rand -base64 32`), `DATABASE_URL` (de Neon), `REDIS_URL` (de Upstash), `S3_*` (de R2), `SMTP_*`/`EMAIL_FROM` (de Resend, solo en `nab-workers`), `CORS_ORIGINS` (el dominio de Vercel, se completa en el paso A5), `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` (solo en `nab-api`).
-3. Antes del primer deploy, corre las migraciones una vez contra la `DATABASE_URL` de Neon desde tu máquina: `DATABASE_URL="postgresql://..." pnpm --filter @nab/database exec prisma migrate deploy`.
+2. Completa las variables marcadas `sync: false` (secretos) en el dashboard de cada servicio: `JWT_SECRET` (genera con `openssl rand -base64 32`), `DATABASE_URL` (de Supabase), `REDIS_URL` (de Upstash), `S3_*` (de Supabase Storage), `SMTP_*`/`EMAIL_FROM` (de Resend, solo en `nab-workers`), `CORS_ORIGINS` (el dominio de Vercel, se completa en el paso A5), `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` (solo en `nab-api`).
+3. Antes del primer deploy, corre las migraciones una vez contra la `DATABASE_URL` de Supabase desde tu máquina: `DATABASE_URL="postgresql://..." pnpm --filter @nab/database exec prisma migrate deploy`.
 4. Deploy. Verifica: `https://nab-api.onrender.com/health` y `/ready` → `200`.
+
+**Importante — no solo la primera vez**: el plan free de Render no ofrece un servicio de tipo "Job" que garantice migrar *antes* de reiniciar `api`/`workers` en cada deploy (a diferencia de la Ruta B, donde `scripts/deploy.sh` serializa migrate → restart). Cada vez que un cambio incluya una migración de Prisma, corre `prisma migrate deploy` manualmente contra Supabase **antes** de hacer push a `main` (o al menos antes de que Render termine el build, ya que el deploy de Render puede tardar menos que tú en acordarte). Si migras después de que el nuevo código ya está corriendo, hay una ventana donde la API sirve con un schema desactualizado.
 
 ### A5. Deploy de la web en Vercel
 
@@ -68,7 +79,7 @@ Esto además te sirve como monitor de caída (si un ping falla, te avisa).
 
 ### A7. Cuándo migrar a la Ruta B
 
-Señales de que conviene pasar al VPS: el cold start tras dormir se vuelve molesto para usuarios reales, se agota la cuota de comandos de Upstash, o Neon se queda corto en almacenamiento (0.5 GB). El código no cambia — solo las variables de entorno y dónde corre.
+Señales de que conviene pasar al VPS: el cold start tras dormir se vuelve molesto para usuarios reales, se agota la cuota de comandos de Upstash, o Supabase se queda corto en almacenamiento (500 MB de DB / 1 GB de Storage). El código no cambia — solo las variables de entorno y dónde corre.
 
 ---
 
@@ -142,7 +153,7 @@ docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml logs -f api   # confirma "Nest application successfully started"
 ```
 
-Verifica: `curl https://api.tudominio.com/health` y `/ready` → `200`. Swagger en `/docs`. SSL Labs grado A.
+Verifica: `curl https://api.tudominio.com/health` y `/ready` → `200`. SSL Labs grado A. (Swagger en `/docs` está deshabilitado en producción a propósito — expondría toda la superficie de la API sin autenticación; pruébalo localmente con `NODE_ENV=development`.)
 
 ### B5. Activar el CD automático del backend
 
@@ -189,7 +200,7 @@ Deploy manual (sin esperar a CI): en el VPS, `cd /opt/nab && ./scripts/deploy.sh
 
 1. Registro con email real → llega verificación (Resend) → verificar cuenta.
 2. Reset de contraseña end-to-end.
-3. Subir CV → visible/descargable (R2).
+3. Subir CV → visible/descargable (Supabase Storage en Ruta A, R2 en Ruta B).
 4. Esperar/forzar un ciclo de ingesta → vacantes reales, sin duplicados en una segunda corrida (o confirmar que `INGEST_MOCK` está sirviendo lo esperado).
 5. Generar CV/carta con IA (real o `AI_MOCK` explícito) y matching.
 6. Stripe test: checkout con `4242 4242 4242 4242` → créditos acreditados; abrir el portal; cancelar → downgrade; reenviar el mismo webhook desde el dashboard de Stripe → confirmar que **no** duplica créditos.

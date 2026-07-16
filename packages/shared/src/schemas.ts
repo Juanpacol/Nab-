@@ -18,6 +18,8 @@ export const applicationStatusSchema = z.enum([
 ]);
 export const planSchema = z.enum(['FREE', 'BASIC', 'PRO', 'ULTRA']);
 export const chatContextSchema = z.enum(['SUPPORT', 'CAREER_COACH']);
+export const companyMemberRoleSchema = z.enum(['OWNER', 'RECRUITER']);
+export type CompanyMemberRole = z.infer<typeof companyMemberRoleSchema>;
 
 // --- Auth ---
 export const registerSchema = z.object({
@@ -63,6 +65,14 @@ export const updateAccountSchema = z.object({
 });
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 
+/** Empresa a la que pertenece el usuario como recruiter (lado B2B). */
+export interface RecruiterCompanySummary {
+  id: string;
+  name: string;
+  slug: string;
+  role: CompanyMemberRole;
+}
+
 /** Respuesta pública del usuario autenticado (sin datos sensibles). */
 export interface AuthUser {
   id: string;
@@ -73,6 +83,8 @@ export interface AuthUser {
   creditsRemaining: number;
   emailVerified: boolean;
   onboarded: boolean;
+  /** Primera empresa de la que el usuario es miembro, o null si no es recruiter de ninguna. */
+  recruiterCompany: RecruiterCompanySummary | null;
 }
 
 export interface AuthTokens {
@@ -230,3 +242,71 @@ export const chatMessageSchema = z.object({
   content: z.string().min(1).max(4000),
 });
 export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
+
+// --- Empresas (lado B2B) ---
+const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+export const createCompanySchema = z.object({
+  name: z.string().min(2, 'Ingresa el nombre de la empresa').max(120),
+  slug: z
+    .string()
+    .min(2)
+    .max(60)
+    .regex(SLUG_RE, 'Usa solo minúsculas, números y guiones'),
+  website: z.string().url('URL inválida').optional(),
+  description: z.string().max(2000).optional(),
+});
+export type CreateCompanyInput = z.infer<typeof createCompanySchema>;
+
+export const updateCompanySchema = z.object({
+  name: z.string().min(2).max(120).optional(),
+  logoUrl: z.string().url().optional(),
+  website: z.string().url().optional(),
+  description: z.string().max(2000).optional(),
+});
+export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
+
+export const addCompanyMemberSchema = z.object({
+  email: z.string().email('Correo inválido'),
+  role: companyMemberRoleSchema.default('RECRUITER'),
+});
+export type AddCompanyMemberInput = z.infer<typeof addCompanyMemberSchema>;
+
+// --- Vacantes de empresa (lado B2B) ---
+export const createCompanyJobSchema = z.object({
+  title: z.string().min(2, 'Ingresa el título del puesto').max(160),
+  location: z.string().max(160).optional(),
+  remote: z.boolean().default(false),
+  description: z.string().min(20, 'Describe la vacante con más detalle').max(10_000),
+  salaryMin: z.number().int().nonnegative().optional(),
+  salaryMax: z.number().int().nonnegative().optional(),
+  currency: z.string().max(8).default('USD'),
+});
+export type CreateCompanyJobInput = z.infer<typeof createCompanyJobSchema>;
+
+export const updateCompanyJobSchema = z.object({
+  title: z.string().min(2).max(160).optional(),
+  location: z.string().max(160).optional(),
+  remote: z.boolean().optional(),
+  description: z.string().min(20).max(10_000).optional(),
+  salaryMin: z.number().int().nonnegative().optional(),
+  salaryMax: z.number().int().nonnegative().optional(),
+  currency: z.string().max(8).optional(),
+  isActive: z.boolean().optional(),
+});
+export type UpdateCompanyJobInput = z.infer<typeof updateCompanyJobSchema>;
+
+export const attachTechTestSchema = z.object({
+  techTestId: z.string().min(1),
+});
+export type AttachTechTestInput = z.infer<typeof attachTechTestSchema>;
+
+export const updateApplicantStatusSchema = z.object({
+  status: applicationStatusSchema,
+});
+export type UpdateApplicantStatusInput = z.infer<typeof updateApplicantStatusSchema>;
+
+export const sendThreadMessageSchema = z.object({
+  content: z.string().min(1, 'Escribe un mensaje').max(4000),
+});
+export type SendThreadMessageInput = z.infer<typeof sendThreadMessageSchema>;

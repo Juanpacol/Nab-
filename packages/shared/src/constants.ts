@@ -38,4 +38,8 @@ export const QUEUE_NAMES = {
   // ver AutoApplyModule. Necesita inyectar AiService/ApplicationsService/
   // CreditsService directamente, y apps/workers no es una app NestJS.
   AUTO_APPLY: 'auto-apply',
+  // Igual que AUTO_APPLY: la consume apps/api (TechTestsModule) — cobra/
+  // reembolsa créditos y emite eventos realtime a la empresa, ninguno de
+  // los dos disponible en apps/workers.
+  COMPANY_AI: 'company-ai',
 } as const;

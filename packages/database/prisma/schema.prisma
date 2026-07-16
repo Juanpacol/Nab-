@@ -52,6 +52,9 @@ enum CreditReason {
   GENERATION
   REFUND
   ADMIN
+  TEST_GENERATION
+  EVALUATION
+  COMPARISON
 }
 
 enum SubscriptionStatus {
@@ -80,12 +83,35 @@ enum JobSourceProvider {
   ADZUNA
   JSEARCH
   MOCK
+  // Vacante propia de una empresa Nab (lado B2B), no ingerida de un proveedor
+  // externo — ver Company/CompanyMember y CompanyJobsModule.
+  COMPANY
 }
 
 enum SyncStatus {
   IDLE
   RUNNING
   ERROR
+}
+
+enum CompanyMemberRole {
+  OWNER
+  RECRUITER
+}
+
+enum TechTestStatus {
+  GENERATING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EVALUATING
+  EVALUATED
+  EVALUATION_FAILED
 }
 
 // ============================================================
@@ -115,6 +141,10 @@ model User {
   integrations       Integration[]
   refreshTokens      RefreshToken[]
   verificationTokens VerificationToken[]
+  companyMemberships CompanyMember[]
+  testSubmissions    TestSubmission[]
+  threadsAsCandidate ApplicationThread[] @relation("ThreadCandidate")
+  threadMessagesSent ThreadMessage[]     @relation("ThreadMessageSender")
 
   @@index([email])
 }
@@ -229,6 +259,187 @@ model CoverLetter {
 }
 
 // ============================================================
+// Empresas (lado B2B): pruebas técnicas, vacantes propias, dashboard RH
+// ============================================================
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  website     String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members   CompanyMember[]
+  jobs      Job[]
+  techTests TechTest[]
+  threads   ApplicationThread[]
+
+  @@index([slug])
+}
+
+// Prueba técnica generada por IA a partir de roleSpec, con rúbrica citada.
+// Versionada: regenerar crea una fila nueva con `version` incrementado y
+// `parentId` apuntando a la anterior — nunca se sobrescribe una versión ya
+// usada por alguna TestSubmission (auditable).
+model TechTest {
+  id              String         @id @default(cuid())
+  companyId       String
+  createdByUserId String
+  title           String
+  roleSpec        String
+  version         Int            @default(1)
+  parentId        String?
+  status          TechTestStatus @default(GENERATING)
+  // TestQuestion[] (packages/shared) — inmutable una vez READY.
+  questionsJson   Json?
+  // { criteria: RubricCriterion[], passThreshold: number } (packages/shared).
+  rubricJson      Json?
+  model           String?
+  generationError String?
+  timeLimitMinutes Int?
+  passScore       Int            @default(60)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobs        Job[]
+  submissions TestSubmission[]
+
+  @@index([companyId, status])
+}
+
+// Respuestas del candidato a una prueba técnica — una por Application
+// (@@unique). `jobId` denormalizado para métricas de funnel sin doble join.
+model TestSubmission {
+  id                String           @id @default(cuid())
+  techTestId        String
+  applicationId     String           @unique
+  userId            String
+  jobId             String
+  status            SubmissionStatus @default(IN_PROGRESS)
+  // TestAnswer[] (packages/shared) — autosave mientras status=IN_PROGRESS.
+  answersJson       Json?
+  startedAt         DateTime         @default(now())
+  submittedAt       DateTime?
+  timeSpentSeconds  Int?
+  // Incrementado en cada evaluate() — permite refId estable por intento
+  // (`{submissionId}#{attempt}`) para re-evaluaciones (fase de evaluación).
+  evaluationAttempt Int              @default(0)
+
+  techTest    TechTest    @relation(fields: [techTestId], references: [id])
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evaluation  CandidateEvaluation?
+
+  @@index([techTestId, status])
+  @@index([jobId, status])
+  @@index([userId])
+}
+
+// Evaluación de una TestSubmission. Bloque IA (aiXxx) INMUTABLE una vez
+// escrito — nunca se sobrescribe en un override; bloque RH (overrideXxx)
+// separado para auditoría (¿qué dijo la IA vs. qué decidió el humano?).
+// `finalScore`/`passed` son el valor EFECTIVO (override ?? ai), denormalizado
+// para que el dashboard (fase siguiente) no tenga que resolver la precedencia
+// en cada query de métricas.
+model CandidateEvaluation {
+  id           String    @id @default(cuid())
+  submissionId String    @unique
+  // CriterionEvaluation[] (packages/shared) — score+justificación+evidencia por criterio.
+  aiScoresJson Json?
+  aiSummary    String?
+  // string[] cada una (packages/shared LlmEvaluation['qualitative']) — antes
+  // se descartaban tras generarse, perdiendo justo el "resumen cualitativo
+  // con puntos destacables" que es el diferenciador de producto.
+  aiStrengths  Json?
+  aiWeaknesses Json?
+  aiHighlights Json?
+  aiTotalScore Int?
+  aiModel      String?
+  evaluatedAt  DateTime?
+  // El propio LLM se auto-reporta si sospecha que el candidato intentó
+  // manipular su evaluación (ver evaluation-generation.service.ts). Cuando es
+  // true, `finalScore`/`passed` quedan en null hasta que RH revise
+  // manualmente — la verificación de citas por substring solo prueba que una
+  // cita EXISTE en la respuesta real, no que sea evidencia técnica legítima
+  // (un candidato podría lograr que el LLM cite su propio texto de inyección
+  // como "evidencia"), así que este flag es el único backstop real.
+  injectionSuspected Boolean @default(false)
+
+  overrideScoresJson  Json?
+  overrideTotalScore  Int?
+  overrideNotes       String?
+  overriddenByUserId  String?
+  overriddenAt        DateTime?
+
+  finalScore Int?
+  passed     Boolean?
+
+  submission TestSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([passed])
+}
+
+// Chat humano↔humano candidato↔RH por aplicación — NO extiende ChatSession
+// (esa es user↔IA, semántica incompatible). Lazy-create: solo existe una vez
+// que alguno de los dos lados manda el primer mensaje, y solo para
+// aplicaciones a vacantes propias de empresa (source COMPANY).
+model ApplicationThread {
+  id              String   @id @default(cuid())
+  applicationId   String   @unique
+  companyId       String
+  candidateUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  company       Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidateUser User            @relation("ThreadCandidate", fields: [candidateUserId], references: [id], onDelete: Cascade)
+  messages      ThreadMessage[]
+
+  @@index([companyId])
+  @@index([candidateUserId])
+}
+
+model ThreadMessage {
+  id           String    @id @default(cuid())
+  threadId     String
+  senderUserId String
+  // true si lo mandó alguien del lado empresa — determina a qué sala NO
+  // reenviar el evento realtime (el remitente ya lo tiene optimista) y
+  // sirve para renderizar la burbuja del lado correcto sin otro join.
+  fromCompany  Boolean
+  content      String
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  thread ApplicationThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User              @relation("ThreadMessageSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+// Un usuario puede pertenecer a varias empresas (y seguir siendo candidato en
+// otras). El rol determina permisos: OWNER puede gestionar miembros y cerrar
+// la empresa; RECRUITER solo opera vacantes/pruebas/candidatos.
+model CompanyMember {
+  id        String            @id @default(cuid())
+  companyId String
+  userId    String
+  role      CompanyMemberRole @default(RECRUITER)
+  createdAt DateTime          @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([userId])
+}
+
+// ============================================================
 // Vacantes e ingesta
 // ============================================================
 
@@ -247,21 +458,32 @@ model Job {
   salaryMax     Int?
   currency      String?   @default("USD")
   atsType       String?
-  applyUrl      String
+  // Nula para vacantes source=COMPANY: la aplicación queda dentro de Nab, no
+  // hay sitio externo al que enviar al candidato.
+  applyUrl      String?
   postedAt      DateTime?
   expiresAt     DateTime?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Solo poblado para source=COMPANY.
+  companyId  String?
+  // Solo poblado para source=COMPANY. Presencia = la aplicación requiere
+  // tomar la prueba antes de considerarse completa (ver ApplicationsService.apply).
+  techTestId String?
+
   // Embedding para matching semántico (pgvector). 1024 dims (Voyage voyage-3).
   embedding Unsupported("vector(1024)")?
 
+  companyRef   Company?      @relation(fields: [companyId], references: [id])
+  techTest     TechTest?     @relation(fields: [techTestId], references: [id])
   applications Application[]
 
   @@unique([source, externalId])
   @@index([isActive, postedAt])
   @@index([company])
+  @@index([companyId, isActive])
 }
 
 model JobSource {
@@ -300,6 +522,8 @@ model Application {
   resume      Resume?      @relation(fields: [resumeId], references: [id])
   coverLetter CoverLetter? @relation(fields: [coverLetterId], references: [id])
   events      ApplicationEvent[]
+  testSubmission TestSubmission?
+  thread      ApplicationThread?
 
   @@unique([userId, jobId])
   @@index([userId, status])
@@ -389,6 +613,30 @@ model ChatMessage {
 // ============================================================
 
 model HelpArticle {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  content   String
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  embedding Unsupported("vector(1024)")?
+}
+
+// Guías editoriales internas (RAG, mismo patrón que HelpArticle) — la
+// tercera fuente citable de la rúbrica de pruebas técnicas (junto a
+// role_spec y standard). Retrieval top-5 por similitud vía pgvector; el
+// pipeline de generación inyecta solo las guías recuperadas y un guideId
+// citado por el LLM solo verifica si pertenece a ESE set (nunca por
+// confianza ciega en el id que el modelo diga).
+// `content` se interpola sin sanitizar/truncar en el prompt de generación
+// (tech-test-generation.service.ts) porque hoy solo lo escribe el seed de
+// Nab — si en el futuro se agrega un endpoint de admin para editar guías,
+// hay que revisar esa interpolación (truncado + escape de delimitadores,
+// mismo trato que sanitizeCandidateAnswer) antes de que el contenido deje
+// de ser 100% confiable.
+model InterviewGuide {
   id        String   @id @default(cuid())
   slug      String   @unique
   title     String

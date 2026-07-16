@@ -2,15 +2,27 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Button } from '@nab/ui';
+import type { RecruiterCompanySummary } from '@nab/shared';
 import { logoutAction } from '@/app/actions/auth';
+import { switchModeAction } from '@/app/actions/company';
 import { disconnectRealtime } from '@/lib/socket';
 
-/** Avatar + menú desplegable con ajustes y cerrar sesión. */
-export function UserMenu({ name, email }: { name: string | null; email: string }) {
+interface UserMenuProps {
+  name: string | null;
+  email: string;
+  /** Si el usuario es recruiter de alguna empresa, habilita el switch candidato↔empresa. */
+  recruiterCompany?: RecruiterCompanySummary | null;
+}
+
+/** Avatar + menú desplegable con ajustes, switch candidato↔empresa y cerrar sesión. */
+export function UserMenu({ name, email, recruiterCompany }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const initial = (name ?? email).charAt(0).toUpperCase();
   const menuRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const inCompanyMode = pathname?.startsWith('/empresa') ?? false;
 
   // Sin esto, un usuario de teclado podía abrir el menú pero no cerrarlo sin
   // hacer clic fuera (no hay forma de hacerlo solo con teclado).
@@ -66,6 +78,23 @@ export function UserMenu({ name, email }: { name: string | null; email: string }
             >
               Ajustes
             </Link>
+            {recruiterCompany && (
+              <>
+                <div className="my-1 h-px bg-border" />
+                <Button
+                  type="button"
+                  role="menuitem"
+                  variant="ghost"
+                  onClick={() => {
+                    setOpen(false);
+                    void switchModeAction(inCompanyMode ? 'candidate' : 'company');
+                  }}
+                  className="h-auto w-full justify-start rounded-sm px-3 py-2 text-left text-sm text-foreground"
+                >
+                  {inCompanyMode ? 'Modo candidato' : `Modo empresa · ${recruiterCompany.name}`}
+                </Button>
+              </>
+            )}
             <form action={logoutAction}>
               <Button
                 type="submit"

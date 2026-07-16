@@ -10,6 +10,7 @@ const PROTECTED = [
   '/billing',
   '/onboarding',
   '/settings',
+  '/empresa',
 ];
 const AUTH_PAGES = ['/login', '/register'];
 
@@ -17,6 +18,10 @@ const AUTH_PAGES = ['/login', '/register'];
  * Protege las rutas del panel: sin sesión (ni access ni refresh) redirige a
  * /login; con sesión, saca al usuario de /login y /register. El refresh real
  * del access token lo hace getCurrentUser() en el servidor.
+ *
+ * El gating de "¿es recruiter de alguna empresa?" para /empresa/* NO vive
+ * aquí — este middleware solo mira presencia de cookies, no decodifica el
+ * JWT ni consulta la API. Ese gate vive en el layout de `(company)/empresa`.
  */
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -33,7 +38,7 @@ export function middleware(req: NextRequest) {
 
   if (AUTH_PAGES.some((p) => pathname.startsWith(p)) && hasSession) {
     const url = req.nextUrl.clone();
-    url.pathname = '/dashboard';
+    url.pathname = req.cookies.get('nab_mode')?.value === 'company' ? '/empresa' : '/dashboard';
     return NextResponse.redirect(url);
   }
 
@@ -51,6 +56,7 @@ export const config = {
     '/billing/:path*',
     '/onboarding/:path*',
     '/settings/:path*',
+    '/empresa/:path*',
     '/login',
     '/register',
   ],

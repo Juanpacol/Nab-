@@ -1,10 +1,13 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { Badge, Button, Card } from '@nab/ui';
 import { APPLICATION_STATUS_LABELS } from '@nab/shared';
 import { getApplication, type ApplicationDetail } from '@/lib/applications';
+import { getCurrentUser } from '@/lib/session';
 import { NotesEditor } from '@/components/notes-editor';
+import { TestStatusCard } from '@/components/test-status-card';
+import { ApplicationChatCard } from '@/components/application-chat-card';
 
 export const metadata: Metadata = { title: 'Aplicación' };
 
@@ -27,6 +30,8 @@ export default async function ApplicationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
   let app: ApplicationDetail;
   try {
     app = await getApplication(id);
@@ -51,10 +56,12 @@ export default async function ApplicationDetailPage({
           </div>
           <Badge variant="primary">{APPLICATION_STATUS_LABELS[app.status] ?? app.status}</Badge>
         </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <a href={app.job.applyUrl} target="_blank" rel="noreferrer">
-            <Button size="sm">Abrir vacante</Button>
-          </a>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {app.job.applyUrl && (
+            <a href={app.job.applyUrl} target="_blank" rel="noreferrer">
+              <Button size="sm">Abrir vacante</Button>
+            </a>
+          )}
           {app.resume && (
             <span className="self-center text-xs text-muted">
               CV adjunto{app.resume.atsScore != null ? ` · ATS ${app.resume.atsScore}%` : ''}
@@ -62,6 +69,24 @@ export default async function ApplicationDetailPage({
           )}
         </div>
       </Card>
+
+      {app.job.techTestId && (
+        <Card className="p-6">
+          <h2 className="font-display text-lg text-foreground">Prueba técnica</h2>
+          <div className="mt-3">
+            <TestStatusCard applicationId={app.id} submission={app.testSubmission} />
+          </div>
+        </Card>
+      )}
+
+      {!app.job.applyUrl && (
+        <Card className="p-6">
+          <h2 className="font-display text-lg text-foreground">Chat con {app.job.company}</h2>
+          <div className="mt-3">
+            <ApplicationChatCard applicationId={app.id} currentUserId={user.id} companyName={app.job.company} />
+          </div>
+        </Card>
+      )}
 
       <Card className="p-6">
         <h2 className="font-display text-lg text-foreground">Notas</h2>

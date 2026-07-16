@@ -7,7 +7,10 @@ export interface JobSummary {
   company: string;
   companyLogoUrl: string | null;
   location: string | null;
-  applyUrl: string;
+  // Nula para vacantes propias de empresa (source=COMPANY): la aplicación
+  // queda dentro de Nab, no hay sitio externo al que enviar al candidato.
+  applyUrl: string | null;
+  techTestId: string | null;
 }
 
 export interface ApplicationCard {
@@ -26,12 +29,19 @@ export interface ApplicationEvent {
   createdAt: string;
 }
 
+export interface TestSubmissionStatus {
+  id: string;
+  status: 'IN_PROGRESS' | 'SUBMITTED' | 'EVALUATING' | 'EVALUATED' | 'EVALUATION_FAILED';
+  submittedAt: string | null;
+}
+
 export interface ApplicationDetail extends ApplicationCard {
   method: string;
   notes: string | null;
   createdAt: string;
   resume: { id: string; title: string; atsScore: number | null } | null;
   coverLetter: { id: string; tone: string } | null;
+  testSubmission: TestSubmissionStatus | null;
   events: ApplicationEvent[];
 }
 

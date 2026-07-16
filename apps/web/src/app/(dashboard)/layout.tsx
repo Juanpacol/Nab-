@@ -7,12 +7,16 @@ import { DashboardNav } from '@/components/dashboard-nav';
 import { UserMenu } from '@/components/user-menu';
 import { SupportWidget } from '@/components/support-widget';
 import { RealtimeToaster } from '@/components/realtime-toaster';
-import { getCurrentUser } from '@/lib/session';
+import { ChatUnreadListener } from '@/components/chat-unread-listener';
+import { getCurrentUser, getAccessToken } from '@/lib/session';
+import { getCandidateUnreadCount } from '@/lib/threads';
 
 /** Shell del panel: topbar con créditos reales + nav lateral/inferior. */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
+  const access = await getAccessToken();
+  const unreadCount = access ? await getCandidateUnreadCount(access).catch(() => 0) : 0;
 
   return (
     <div className="min-h-screen">
@@ -24,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="flex items-center gap-3">
             <Badge variant="primary">⚡ {user.creditsRemaining} créditos</Badge>
             <ThemeToggle />
-            <UserMenu name={user.name} email={user.email} />
+            <UserMenu name={user.name} email={user.email} recruiterCompany={user.recruiterCompany} />
           </div>
         </div>
       </header>
@@ -34,6 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </div>
       <SupportWidget />
       <RealtimeToaster />
+      <ChatUnreadListener side="candidate" initialCount={unreadCount} />
     </div>
   );
 }

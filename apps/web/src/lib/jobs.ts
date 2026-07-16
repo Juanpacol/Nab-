@@ -12,11 +12,12 @@ export interface JobCard {
   currency: string | null;
   postedAt: string | null;
   score?: number;
+  techTestId?: string | null;
 }
 
 export interface JobDetail extends JobCard {
   description: string;
-  applyUrl: string;
+  applyUrl: string | null;
   atsType: string | null;
 }
 

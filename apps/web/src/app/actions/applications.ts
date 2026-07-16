@@ -5,8 +5,10 @@ import { apiFetch, type ApiError } from '@/lib/api';
 import { getAccessToken } from '@/lib/session';
 
 export interface ApplyState {
-  applyUrl?: string;
+  applyUrl?: string | null;
   alreadyApplied?: boolean;
+  requiresTest?: boolean;
+  applicationId?: string;
   error?: string;
 }
 
@@ -21,13 +23,23 @@ export async function applyAction(jobId: string): Promise<ApplyState> {
   const access = await getAccessToken();
   if (!access) return { error: 'Inicia sesión para aplicar.' };
   try {
-    const res = await apiFetch<{ applyUrl: string; alreadyApplied: boolean }>('/applications', {
+    const res = await apiFetch<{
+      application: { id: string };
+      applyUrl: string | null;
+      alreadyApplied: boolean;
+      requiresTest: boolean;
+    }>('/applications', {
       method: 'POST',
       accessToken: access,
       body: JSON.stringify({ jobId }),
     });
     revalidatePath('/applications');
-    return { applyUrl: res.applyUrl, alreadyApplied: res.alreadyApplied };
+    return {
+      applyUrl: res.applyUrl,
+      alreadyApplied: res.alreadyApplied,
+      requiresTest: res.requiresTest,
+      applicationId: res.application.id,
+    };
   } catch (err) {
     return { error: toMessage(err as ApiError) };
   }

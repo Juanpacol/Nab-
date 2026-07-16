@@ -3,15 +3,26 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@nab/ui';
+import { useUnreadStore } from '@/stores/unread';
 
 const NAV = [
   { href: '/dashboard', label: 'Inicio', icon: '🏠' },
   { href: '/feed', label: 'Descubrir', icon: '🔥' },
   { href: '/jobs', label: 'Explorar', icon: '🔍' },
-  { href: '/applications', label: 'Aplicaciones', icon: '📋' },
+  { href: '/applications', label: 'Aplicaciones', icon: '📋', showUnread: true },
   { href: '/coach', label: 'Coach IA', icon: '💬' },
   { href: '/profile', label: 'Perfil', icon: '👤' },
 ];
+
+function UnreadDot() {
+  const count = useUnreadStore((s) => s.count);
+  if (count === 0) return null;
+  return (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 font-mono text-[10px] font-medium text-white">
+      {count > 9 ? '9+' : count}
+    </span>
+  );
+}
 
 /** Navegación lateral en escritorio; barra inferior fija en móvil. */
 export function DashboardNav() {
@@ -37,6 +48,7 @@ export function DashboardNav() {
               >
                 <span>{item.icon}</span>
                 {item.label}
+                {item.showUnread && <UnreadDot />}
               </Link>
             );
           })}
@@ -52,12 +64,17 @@ export function DashboardNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]',
+                'relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]',
                 active ? 'text-primary' : 'text-muted',
               )}
             >
               <span className="text-lg">{item.icon}</span>
               {item.label}
+              {item.showUnread && (
+                <span className="absolute right-1/4 top-1">
+                  <UnreadDot />
+                </span>
+              )}
             </Link>
           );
         })}

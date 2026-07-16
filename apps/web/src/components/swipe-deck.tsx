@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
 import { Button, Card } from '@nab/ui';
 import { formatSalary, type JobCard } from '@/lib/jobs';
@@ -66,6 +67,9 @@ function SwipeCard({
         </p>
 
         {salary && <p className="font-mono text-sm text-foreground">{salary}</p>}
+        {job.techTestId && (
+          <p className="mt-1 font-mono text-xs text-primary">🧪 Incluye prueba técnica</p>
+        )}
 
         <motion.span
           style={{ opacity: likeOpacity }}
@@ -96,7 +100,7 @@ function SwipeCard({
  */
 export function SwipeDeck({ jobs, loadError = false }: { jobs: JobCard[]; loadError?: boolean }) {
   const [index, setIndex] = useState(0);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; testApplicationId?: string } | null>(null);
   const [, startAction] = useTransition();
   // "Deshacer" solo retrocede el índice visual — para 'right' ya se disparó
   // applyAction (cobra crédito y marca la aplicación como enviada) contra el
@@ -115,16 +119,19 @@ export function SwipeDeck({ jobs, loadError = false }: { jobs: JobCard[]; loadEr
     if (dir === 'right') {
       startAction(async () => {
         const res = await applyAction(job.id);
-        if (res.error) setToast(res.error);
-        else {
-          setToast(res.alreadyApplied ? 'Ya habías aplicado' : `Aplicaste a ${job.company}`);
+        if (res.error) {
+          setToast({ text: res.error });
+        } else if (res.requiresTest && res.applicationId && !res.alreadyApplied) {
+          setToast({ text: `Aplicaste a ${job.company} — incluye una prueba técnica`, testApplicationId: res.applicationId });
+        } else {
+          setToast({ text: res.alreadyApplied ? 'Ya habías aplicado' : `Aplicaste a ${job.company}` });
           if (res.applyUrl) window.open(res.applyUrl, '_blank', 'noopener');
         }
       });
     } else if (dir === 'up') {
       startAction(async () => {
         await saveJobAction(job.id);
-        setToast(`Guardada: ${job.title}`);
+        setToast({ text: `Guardada: ${job.title}` });
       });
     }
   }
@@ -161,7 +168,19 @@ export function SwipeDeck({ jobs, loadError = false }: { jobs: JobCard[]; loadEr
         )}
       </div>
 
-      {toast && <p className="mt-4 text-center text-sm text-primary">{toast}</p>}
+      {toast && (
+        <div className="mt-4 text-center text-sm text-primary">
+          <p>{toast.text}</p>
+          {toast.testApplicationId && (
+            <Link
+              href={`/applications/${toast.testApplicationId}/prueba`}
+              className="mt-1 inline-block font-medium underline"
+            >
+              Realizar prueba ahora →
+            </Link>
+          )}
+        </div>
+      )}
 
       {remaining.length > 0 && (
         <div className="mt-6 flex items-center justify-center gap-5">

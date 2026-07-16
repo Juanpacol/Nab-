@@ -5,6 +5,7 @@ import { Badge, Button, Card } from '@nab/ui';
 import { getJob, formatSalary } from '@/lib/jobs';
 import { SaveJobButton } from '@/components/save-job-button';
 import { GenerateDocsPanel } from '@/components/generate-docs-panel';
+import { ApplyButton } from '@/components/apply-button';
 
 export const metadata: Metadata = { title: 'Detalle de vacante' };
 
@@ -40,14 +41,19 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               {job.remote && <Badge variant="primary">Remoto</Badge>}
               {salary && <span className="font-mono text-sm text-foreground">{salary}</span>}
               {job.atsType && <Badge>{job.atsType}</Badge>}
+              {job.techTestId && <Badge variant="primary">🧪 Incluye prueba técnica</Badge>}
             </div>
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <a href={job.applyUrl} target="_blank" rel="noreferrer">
-            <Button>Aplicar en el sitio</Button>
-          </a>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          {job.applyUrl ? (
+            <a href={job.applyUrl} target="_blank" rel="noreferrer">
+              <Button>Aplicar en el sitio</Button>
+            </a>
+          ) : (
+            <ApplyButton jobId={job.id} />
+          )}
           <SaveJobButton jobId={job.id} size="md" />
         </div>
       </Card>

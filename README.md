@@ -98,5 +98,45 @@ El desarrollo siguió un plan por fases (ver `/Users/juanpablo/.claude/plans/`):
 7. ✅ App móvil (Expo) — Expo Router, feed swipe nativo, tracking, coach,
    push notifications (Expo Notifications) y sincronización en tiempo real
    (WebSocket) compartida con la web
-8. 🚧 Despliegue a beta pública (web en Vercel + api/workers/Postgres/Redis
+8. ✅ Portal B2B para empresas — generación de pruebas técnicas con IA
+   (rúbrica citada y verificada), publicación de vacantes propias,
+   evaluación de candidatos con IA + override humano, dashboard con
+   métricas y comparativa, chat candidato↔RH en tiempo real (web y móvil).
+   Ver la sección [Portal de empresas (B2B)](#portal-de-empresas-b2b) más abajo.
+9. 🚧 Despliegue a beta pública (web en Vercel + api/workers/Postgres/Redis
    en VPS) — ver [docs/DEPLOY.md](docs/DEPLOY.md) para el runbook completo.
+
+## Portal de empresas (B2B)
+
+Nab es un marketplace de dos lados: candidatos (feed swipe, CVs/cartas con IA)
+y empresas, que pueden usar Nab como su propio ATS ligero con evaluación
+técnica asistida por IA.
+
+**Flujo de una empresa**: crear cuenta de empresa (`/empresa/onboarding`) →
+publicar una vacante propia → generar una prueba técnica con IA a partir de
+un título + especificación del rol (`/empresa/vacantes/:id/prueba/crear`) →
+los candidatos aplican y la resuelven desde el feed normal (web o móvil) →
+evaluar cada submission con IA (o revisar/ajustar el puntaje a mano) →
+comparar candidatos lado a lado → chatear directo con cada candidato.
+
+**Piezas clave**:
+- **Rúbrica citada y verificada**: cada criterio de evaluación cita su fuente
+  (un fragmento textual de la especificación del rol, un estándar técnico de
+  un catálogo curado, o una guía interna) — la verificación la hace el
+  pipeline en código, nunca el modelo. Ver `packages/shared/src/tech-tests.ts`
+  y `apps/api/src/modules/tech-tests/tech-test-generation.service.ts`.
+- **Multi-tenant**: `Company` + `CompanyMember` (roles OWNER/RECRUITER),
+  aislamiento estricto por `companyId` derivado siempre de la membresía
+  verificada del JWT, nunca del cliente. Ver `apps/api/src/modules/companies/`.
+- **Créditos**: generar una prueba, evaluar un candidato y generar un
+  análisis comparativo con IA cuestan créditos del mismo `CreditLedger` que
+  usa el resto de la plataforma (`CREDIT_COSTS.TEST_GENERATION/EVALUATION/COMPARISON`
+  en `packages/shared/src/plans.ts`).
+- **Chat en tiempo real**: `ApplicationThread`/`ThreadMessage` por aplicación,
+  vía el mismo `RealtimeGateway` (WebSocket) que el resto de la plataforma,
+  con push notifications (Expo) al candidato si está offline.
+
+`pnpm db:seed` crea una empresa demo (`rh-demo@nab.app`) con una vacante,
+una prueba técnica lista y dos candidatos ya evaluados (uno aprobado, uno no)
+para explorar el dashboard/candidatos/comparativa sin tener que generar nada
+manualmente.

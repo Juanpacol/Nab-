@@ -66,6 +66,7 @@ export class AiService {
     user: string,
     maxTokens = 4096,
     userId?: string,
+    temperature?: number,
   ): Promise<string | null> {
     if (!this.client) return null;
     const message = await this.client.messages.create({
@@ -73,6 +74,9 @@ export class AiService {
       max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: user }],
+      // claude-sonnet-5 rechaza temperature no-default (400) — solo se pasa
+      // cuando el caller lo pide explícitamente (verificadores con Haiku).
+      ...(temperature !== undefined ? { temperature } : {}),
     });
     const usage = message.usage;
     this.logger.log(
@@ -103,6 +107,32 @@ export class AiService {
       this.logger.error(`Fallo IA (${model}); usando fallback: ${String(err)}`);
       return fallback();
     }
+  }
+
+  /**
+   * Como `completeJson`, pero para pipelines donde una salida inválida del
+   * modelo REAL debe ser un fallo VISIBLE, no un fallback silencioso a datos
+   * mock — la generación/evaluación de pruebas técnicas marca el registro
+   * como FAILED y reembolsa el crédito en vez de servir una prueba a medias
+   * o inventada (ver .claude/agents/nab-ai-pipeline-guard.md). En modo mock
+   * (sin ANTHROPIC_API_KEY) sí usa `mock()`, igual que el resto del servicio
+   * — solo el caso "hay cliente real pero devolvió basura" lanza.
+   */
+  async completeStructured<S extends z.ZodTypeAny>(
+    model: string,
+    system: string,
+    user: string,
+    schema: S,
+    mock: () => z.infer<S>,
+    opts?: { maxTokens?: number; userId?: string; temperature?: number },
+  ): Promise<z.infer<S>> {
+    if (!this.client) return mock();
+    const text = await this.complete(model, system, user, opts?.maxTokens ?? 8192, opts?.userId, opts?.temperature);
+    const parsed = schema.safeParse(extractJson(text ?? ''));
+    if (!parsed.success) {
+      throw new Error(`Salida de IA inválida para ${model}: ${parsed.error.message}`);
+    }
+    return parsed.data as z.infer<S>;
   }
 
   // --- Extracción estructurada de la vacante (Haiku, cacheable por job) ---

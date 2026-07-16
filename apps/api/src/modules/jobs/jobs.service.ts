@@ -17,6 +17,7 @@ const JOB_CARD_SELECT = {
   salaryMax: true,
   currency: true,
   postedAt: true,
+  techTestId: true,
 } satisfies Prisma.JobSelect;
 
 @Injectable()
@@ -108,11 +109,16 @@ export class JobsService {
         salaryMax: number | null;
         currency: string | null;
         postedAt: Date | null;
+        // Expuesto para que AutoApplyService pueda excluir vacantes COMPANY del
+        // agente automático (requieren tomar una prueba técnica) sin ocultarlas
+        // de la búsqueda/feed manual, que sí debe incluirlas.
+        source: string;
+        techTestId: string | null;
         score: number;
       }>
     >(
       `SELECT id, title, company, location, remote,
-              "salaryMin", "salaryMax", currency, "postedAt",
+              "salaryMin", "salaryMax", currency, "postedAt", source, "techTestId",
               1 - (embedding <=> $1::vector) AS score
        FROM "Job"
        WHERE "isActive" = true AND embedding IS NOT NULL

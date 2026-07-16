@@ -18,6 +18,7 @@ const JOB_SUMMARY = {
   companyLogoUrl: true,
   location: true,
   applyUrl: true,
+  techTestId: true,
 } satisfies Prisma.JobSelect;
 
 @Injectable()
@@ -38,16 +39,25 @@ export class ApplicationsService {
   async apply(userId: string, input: CreateApplicationInput, opts?: { auto?: boolean }) {
     const job = await this.prisma.job.findUnique({
       where: { id: input.jobId },
-      select: { id: true, applyUrl: true, title: true, company: true },
+      select: {
+        id: true,
+        applyUrl: true,
+        title: true,
+        company: true,
+        source: true,
+        companyId: true,
+        techTestId: true,
+      },
     });
     if (!job) throw new NotFoundException('Vacante no encontrada');
+    const requiresTest = job.source === 'COMPANY' && job.techTestId !== null;
 
     const existing = await this.prisma.application.findUnique({
       where: { userId_jobId: { userId, jobId: input.jobId } },
       select: { id: true, submittedAt: true },
     });
     if (existing?.submittedAt) {
-      return { application: existing, applyUrl: job.applyUrl, alreadyApplied: true };
+      return { application: existing, applyUrl: job.applyUrl, alreadyApplied: true, requiresTest };
     }
 
     await this.credits.assertBalance(userId, CREDIT_COSTS.APPLICATION);
@@ -75,6 +85,12 @@ export class ApplicationsService {
     // queda marcada como enviada sin haberse cobrado (antes eran dos pasos
     // separados y un reintento posterior nunca volvía a intentar el cobro,
     // porque `apply()` es idempotente por `submittedAt` ya seteado).
+    // Vacantes propias de empresa (source=COMPANY) no tienen sitio externo al
+    // que enviar al candidato: la aplicación queda "dentro" de Nab. El resto
+    // del flujo (cobro, upsert, idempotencia) es idéntico al de una vacante
+    // ingerida — solo cambia `method` y a quién se notifica.
+    const method = job.source === 'COMPANY' ? 'MANUAL' : 'EXTERNAL';
+
     const application = await this.prisma.$transaction(async (tx) => {
       const app = await tx.application.upsert({
         where: { userId_jobId: { userId, jobId: input.jobId } },
@@ -82,7 +98,7 @@ export class ApplicationsService {
           userId,
           jobId: input.jobId,
           status: 'APPLIED',
-          method: 'EXTERNAL',
+          method,
           resumeId: input.resumeId ?? null,
           coverLetterId: input.coverLetterId ?? null,
           submittedAt: new Date(),
@@ -109,7 +125,14 @@ export class ApplicationsService {
       jobTitle: job.title,
       company: job.company,
     });
-    return { application, applyUrl: job.applyUrl, alreadyApplied: false };
+    if (job.source === 'COMPANY' && job.companyId) {
+      this.realtime.emitToCompany(job.companyId, 'applicant.new', {
+        applicationId: application.id,
+        jobId: job.id,
+        jobTitle: job.title,
+      });
+    }
+    return { application, applyUrl: job.applyUrl, alreadyApplied: false, requiresTest };
   }
 
   /** Lista todas las aplicaciones del usuario con datos de la vacante (para el kanban). */
@@ -144,6 +167,9 @@ export class ApplicationsService {
         job: { select: JOB_SUMMARY },
         resume: { select: { id: true, title: true, atsScore: true } },
         coverLetter: { select: { id: true, tone: true } },
+        // Estado derivado de la prueba técnica (si la vacante requiere una) —
+        // nunca se toca ApplicationStatus para esto, ver TestTakingService.
+        testSubmission: { select: { id: true, status: true, submittedAt: true } },
         events: { orderBy: { createdAt: 'asc' } },
       },
     });

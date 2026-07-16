@@ -10,7 +10,7 @@ import { ApplicationsService } from './applications.service.js';
  * el crédito" (ver `apply()`), no solo la lógica de cada servicio aislado.
  */
 function createFakePrisma() {
-  const jobs = new Map<string, { id: string; applyUrl: string }>();
+  const jobs = new Map<string, any>();
   const applications = new Map<string, any>();
   const resumes = new Map<string, { id: string; userId: string }>();
   const coverLetters = new Map<string, { id: string; userId: string }>();
@@ -96,9 +96,18 @@ function createFakePrisma() {
 
 function buildService(fake: ReturnType<typeof createFakePrisma>) {
   const credits = new CreditsService(fake.client);
-  const realtime = { emitToUser: vi.fn() };
+  const realtime = { emitToUser: vi.fn(), emitToCompany: vi.fn() };
   const push = { send: vi.fn() };
   return new ApplicationsService(fake.client, credits, realtime as any, push as any);
+}
+
+/** Como buildService, pero además devuelve el mock de realtime para inspeccionar emitToCompany. */
+function buildServiceWithRealtime(fake: ReturnType<typeof createFakePrisma>) {
+  const credits = new CreditsService(fake.client);
+  const realtime = { emitToUser: vi.fn(), emitToCompany: vi.fn() };
+  const push = { send: vi.fn() };
+  const service = new ApplicationsService(fake.client, credits, realtime as any, push as any);
+  return { service, realtime };
 }
 
 describe('ApplicationsService.apply', () => {
@@ -224,5 +233,66 @@ describe('ApplicationsService.apply', () => {
     const service = buildService(fake);
 
     await expect(service.apply(userId, { jobId: 'no-existe' })).rejects.toThrow(NotFoundException);
+  });
+
+  describe('vacantes source=COMPANY (aplicación interna)', () => {
+    it('cobra el crédito igual, deja applyUrl null, method MANUAL y notifica a la empresa', async () => {
+      const fake = createFakePrisma();
+      fake.jobs.set(jobId, {
+        id: jobId,
+        applyUrl: null,
+        source: 'COMPANY',
+        companyId: 'company-1',
+        techTestId: null,
+        title: 'Backend Engineer',
+        company: 'Acme',
+      });
+      fake.users.set(userId, { id: userId, creditsRemaining: 5 });
+      const { service, realtime } = buildServiceWithRealtime(fake);
+
+      const result = await service.apply(userId, { jobId });
+
+      expect(result.applyUrl).toBeNull();
+      expect(result.requiresTest).toBe(false);
+      expect(fake.users.get(userId)?.creditsRemaining).toBe(4);
+      expect(fake.applications.get(jobId)).toMatchObject({ method: 'MANUAL', status: 'APPLIED' });
+      expect(realtime.emitToCompany).toHaveBeenCalledWith(
+        'company-1',
+        'applicant.new',
+        expect.objectContaining({ jobId }),
+      );
+    });
+
+    it('requiresTest es true cuando la vacante tiene una prueba técnica adjunta', async () => {
+      const fake = createFakePrisma();
+      fake.jobs.set(jobId, {
+        id: jobId,
+        applyUrl: null,
+        source: 'COMPANY',
+        companyId: 'company-1',
+        techTestId: 'test-1',
+        title: 'Backend Engineer',
+        company: 'Acme',
+      });
+      fake.users.set(userId, { id: userId, creditsRemaining: 5 });
+      const { service } = buildServiceWithRealtime(fake);
+
+      const result = await service.apply(userId, { jobId });
+
+      expect(result.requiresTest).toBe(true);
+    });
+
+    it('una vacante externa (no COMPANY) sigue con method EXTERNAL y no notifica a ninguna empresa', async () => {
+      const fake = createFakePrisma();
+      fake.jobs.set(jobId, { id: jobId, applyUrl: 'https://empresa.example/apply' });
+      fake.users.set(userId, { id: userId, creditsRemaining: 5 });
+      const { service, realtime } = buildServiceWithRealtime(fake);
+
+      const result = await service.apply(userId, { jobId });
+
+      expect(result.requiresTest).toBe(false);
+      expect(fake.applications.get(jobId)).toMatchObject({ method: 'EXTERNAL' });
+      expect(realtime.emitToCompany).not.toHaveBeenCalled();
+    });
   });
 });

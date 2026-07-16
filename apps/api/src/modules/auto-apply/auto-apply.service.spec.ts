@@ -9,8 +9,18 @@ import { AutoApplyService } from './auto-apply.service.js';
  * cajas negras, no reimplementados. Estos tests verifican la orquestación:
  * filtro de score, tope diario, dedupe, y que un error no tumbe la corrida.
  */
-function makeJob(id: string, score: number, overrides: Partial<{ title: string; company: string }> = {}) {
-  return { id, title: overrides.title ?? `Job ${id}`, company: overrides.company ?? 'Acme', score };
+function makeJob(
+  id: string,
+  score: number,
+  overrides: Partial<{ title: string; company: string; source: string }> = {},
+) {
+  return {
+    id,
+    title: overrides.title ?? `Job ${id}`,
+    company: overrides.company ?? 'Acme',
+    source: overrides.source ?? 'MOCK',
+    score,
+  };
 }
 
 function createFakePrisma() {
@@ -150,6 +160,20 @@ describe('AutoApplyService.runSweep', () => {
 
     expect(applications.apply).toHaveBeenCalledTimes(1);
     expect(applications.apply.mock.calls[0]![0]).toBe('user-2');
+  });
+
+  it('excluye vacantes source=COMPANY (pueden requerir una prueba técnica que el agente no puede rendir)', async () => {
+    const fake = createFakePrisma();
+    fake.client.profile.findMany.mockResolvedValue([
+      { userId, autoApplyMinScore: 50, autoApplyMaxPerDay: 5 },
+    ]);
+    const matches = [makeJob('a', 0.9, { source: 'COMPANY' }), makeJob('b', 0.9)];
+    const { service, applications } = buildService(fake, matches);
+
+    await service.runSweep();
+
+    expect(applications.apply).toHaveBeenCalledTimes(1);
+    expect(applications.apply.mock.calls[0]![1].jobId).toBe('b');
   });
 
   it('marca la aplicación con opts.auto: true', async () => {

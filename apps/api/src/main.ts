@@ -1,3 +1,12 @@
+// Debe ir antes que cualquier otro import: varios módulos leen process.env
+// en su propio nivel superior al cargarse (instrument.ts para Sentry,
+// AuthModule para JwtModule.register(), QueuesModule para la URL de Redis).
+// `ConfigModule.forRoot()` (registrado dentro de AppModule) carga el .env
+// DEMASIADO TARDE para esos casos: sus imports ya se resolvieron antes de
+// que el array de `imports` de AppModule llegue a evaluarse. Precargar aquí
+// con dotenv es lo único que garantiza que process.env esté completo desde
+// el primer import.
+import 'dotenv/config';
 import './instrument.js';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';

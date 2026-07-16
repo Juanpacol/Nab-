@@ -22,6 +22,12 @@ import { ChatModule } from './modules/chat/chat.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { AutoApplyModule } from './modules/auto-apply/auto-apply.module.js';
+import { CompaniesModule } from './modules/companies/companies.module.js';
+import { CompanyJobsModule } from './modules/company-jobs/company-jobs.module.js';
+import { TechTestsModule } from './modules/tech-tests/tech-tests.module.js';
+import { TestTakingModule } from './modules/test-taking/test-taking.module.js';
+import { CompanyDashboardModule } from './modules/company-dashboard/company-dashboard.module.js';
+import { ThreadsModule } from './modules/threads/threads.module.js';
 
 @Module({
   imports: [
@@ -56,6 +62,12 @@ import { AutoApplyModule } from './modules/auto-apply/auto-apply.module.js';
     BillingModule,
     ChatModule,
     AutoApplyModule,
+    CompaniesModule,
+    CompanyJobsModule,
+    TechTestsModule,
+    TestTakingModule,
+    CompanyDashboardModule,
+    ThreadsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

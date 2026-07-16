@@ -62,7 +62,11 @@ export class AutoApplyService {
 
     const { data: matches } = await this.jobs.forYou(profile.userId, 20);
     const minScore = profile.autoApplyMinScore / 100;
-    const candidates = matches.filter((j) => j.score >= minScore);
+    // Las vacantes COMPANY pueden requerir tomar una prueba técnica antes de
+    // quedar aplicadas — el agente automático no puede rendirla por el
+    // usuario, así que las excluye de la barrida (el candidato sigue
+    // viéndolas y puede aplicar manualmente).
+    const candidates = matches.filter((j) => j.score >= minScore && j.source !== 'COMPANY');
 
     for (const job of candidates) {
       if (remaining <= 0) break;

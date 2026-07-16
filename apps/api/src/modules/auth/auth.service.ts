@@ -122,8 +122,19 @@ export class AuthService {
   async toAuthUser(userId: string): Promise<AuthUser> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { profile: { select: { id: true } } },
+      include: {
+        profile: { select: { id: true } },
+        // Un usuario puede pertenecer a varias empresas; para el switcher
+        // candidato↔recruiter alcanza con la más antigua (la que suele ser
+        // "su" empresa principal). El listado completo vive en GET /companies/mine.
+        companyMemberships: {
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          select: { role: true, company: { select: { id: true, name: true, slug: true } } },
+        },
+      },
     });
+    const membership = user.companyMemberships[0];
     return {
       id: user.id,
       email: user.email,
@@ -133,6 +144,9 @@ export class AuthService {
       creditsRemaining: user.creditsRemaining,
       emailVerified: user.emailVerifiedAt !== null,
       onboarded: user.profile !== null,
+      recruiterCompany: membership
+        ? { id: membership.company.id, name: membership.company.name, slug: membership.company.slug, role: membership.role }
+        : null,
     };
   }
 }

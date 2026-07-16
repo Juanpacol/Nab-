@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { APPLICATION_STATUS_LABELS, KANBAN_COLUMNS } from '@nab/shared';
 import { useTheme } from '@/theme';
 import { listApplications, updateApplicationStatus, type ApplicationCard } from '@/lib/applications';
@@ -9,6 +10,7 @@ import { useRealtime, useRealtimeStatus } from '@/lib/socket';
 /** Seguimiento de aplicaciones (Fase 7): lista mobile-first del kanban web. */
 export default function ApplicationsScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const [apps, setApps] = useState<ApplicationCard[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const connected = useRealtimeStatus();
@@ -102,38 +104,81 @@ export default function ApplicationsScreen() {
             </Text>
           )
         }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => changeStatus(item)}
-            style={{
-              backgroundColor: theme.surface,
-              borderWidth: 1,
-              borderColor: theme.border,
-              borderRadius: 12,
-              padding: 14,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: '600', color: theme.fg }}>{item.job.title}</Text>
-              <Text style={{ fontSize: 13, color: theme.fgMuted }}>{item.job.company}</Text>
-            </View>
+        renderItem={({ item }) => {
+          // Nulo solo para vacantes propias de empresa (source=COMPANY) —
+          // las únicas con chat y, si tienen prueba adjunta, botón de prueba.
+          const isCompanyJob = !item.job.applyUrl;
+          return (
             <View
               style={{
-                backgroundColor: theme.primarySoft,
-                borderRadius: 6,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.border,
+                borderRadius: 12,
+                padding: 14,
+                gap: 10,
               }}
             >
-              <Text style={{ fontSize: 11, fontWeight: '600', color: theme.primary }}>
-                {APPLICATION_STATUS_LABELS[item.status] ?? item.status}
-              </Text>
+              <Pressable
+                onPress={() => changeStatus(item)}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: theme.fg }}>{item.job.title}</Text>
+                  <Text style={{ fontSize: 13, color: theme.fgMuted }}>{item.job.company}</Text>
+                </View>
+                <View
+                  style={{
+                    backgroundColor: theme.primarySoft,
+                    borderRadius: 6,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: theme.primary }}>
+                    {APPLICATION_STATUS_LABELS[item.status] ?? item.status}
+                  </Text>
+                </View>
+              </Pressable>
+              {isCompanyJob && (
+                <View style={{ flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 10 }}>
+                  <Pressable
+                    onPress={() => router.push(`/chat/${item.id}`)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 8,
+                      backgroundColor: theme.surface2,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13 }}>💬</Text>
+                    <Text style={{ fontSize: 13, color: theme.fg, fontWeight: '500' }}>Chat</Text>
+                  </Pressable>
+                  {item.job.techTestId && (
+                    <Pressable
+                      onPress={() => router.push(`/test/${item.id}`)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 8,
+                        backgroundColor: theme.surface2,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13 }}>📝</Text>
+                      <Text style={{ fontSize: 13, color: theme.fg, fontWeight: '500' }}>Prueba</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
             </View>
-          </Pressable>
-        )}
+          );
+        }}
       />
     </SafeAreaView>
   );

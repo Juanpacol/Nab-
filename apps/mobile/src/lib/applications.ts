@@ -7,7 +7,12 @@ export interface ApplicationCard {
   matchScore: number | null;
   submittedAt: string | null;
   updatedAt: string;
-  job: Pick<JobCard, 'id' | 'title' | 'company' | 'companyLogoUrl' | 'location'> & { applyUrl: string };
+  job: Pick<JobCard, 'id' | 'title' | 'company' | 'companyLogoUrl' | 'location'> & {
+    // Nulo para vacantes propias de empresa (source=COMPANY) — la aplicación
+    // queda dentro de Nab, y esas son las únicas con chat/prueba técnica.
+    applyUrl: string | null;
+    techTestId: string | null;
+  };
 }
 
 export interface ApplyResult {
